@@ -1,0 +1,169 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+class Model(BaseModel):
+    model_config = ConfigDict(extra="forbid", use_enum_values=True)
+
+
+class TicketKind(StrEnum):
+    UNKNOWN = "unknown"
+    ENQUIRY = "enquiry"
+    SERVICE_REQUEST = "service_request"
+    INCIDENT = "incident"
+
+
+class TicketPriority(StrEnum):
+    LOW = "low"
+    NORMAL = "normal"
+    HIGH = "high"
+    EMERGENCY = "emergency"
+
+
+class TicketStatus(StrEnum):
+    NEW = "new"
+    TRIAGING = "triaging"
+    WORKING = "working"
+    NEEDS_APPROVAL = "needs_approval"
+    WAITING_TECHNICIAN = "waiting_technician"
+    WAITING_VERIFICATION = "waiting_verification"
+    RESOLVED = "resolved"
+    ESCALATED = "escalated"
+
+
+class RiskTier(StrEnum):
+    AUTONOMOUS = "autonomous"
+    APPROVAL_REQUIRED = "approval_required"
+    FORBIDDEN = "forbidden"
+
+
+class TicketCreate(Model):
+    subject: str = Field(min_length=3, max_length=120)
+    description: str = Field(min_length=3, max_length=2000)
+    requester: str = Field(default="Occupant", min_length=2, max_length=80)
+    location_id: str = Field(default="BLDG-A", min_length=2, max_length=80)
+    kind: TicketKind | None = None
+
+
+class Ticket(Model):
+    ticket_id: str
+    subject: str
+    description: str
+    requester: str
+    location_id: str
+    kind: TicketKind = TicketKind.UNKNOWN
+    priority: TicketPriority = TicketPriority.NORMAL
+    status: TicketStatus = TicketStatus.NEW
+    safety_flags: list[str] = Field(default_factory=list)
+    confidence: float = Field(default=0.0, ge=0, le=1)
+    assigned_owner: str = "BuildingOps Autopilot"
+    sla_due_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    resolved_at: datetime | None = None
+    waiting_reason: str | None = None
+    wake_at: datetime | None = None
+    version: int = 1
+
+
+class TicketEvent(Model):
+    event_id: str
+    ticket_id: str
+    actor: str
+    event_type: str
+    summary: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    correlation_id: str
+    created_at: datetime
+
+
+class WorkflowJob(Model):
+    job_id: str
+    ticket_id: str
+    job_type: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    available_at: datetime
+    status: Literal["pending", "processing", "completed", "failed"] = "pending"
+    attempts: int = 0
+    lease_until: datetime | None = None
+    last_error: str | None = None
+
+
+class ActionRecord(Model):
+    action_id: str
+    ticket_id: str
+    action_type: str
+    risk_tier: RiskTier
+    policy_rule: str
+    status: Literal["proposed", "approved", "denied", "completed", "blocked", "failed"]
+    before_state: dict[str, Any] = Field(default_factory=dict)
+    requested: dict[str, Any] = Field(default_factory=dict)
+    after_state: dict[str, Any] = Field(default_factory=dict)
+    rationale: str
+    idempotency_key: str
+    created_at: datetime
+    completed_at: datetime | None = None
+
+
+class WorkOrder(Model):
+    work_order_id: str
+    ticket_id: str
+    asset_id: str
+    location_id: str
+    trade: str
+    priority: TicketPriority
+    procedure: str
+    technician: str
+    status: Literal["requested", "in_progress", "completed", "failed"]
+    requested_at: datetime
+    due_at: datetime
+    completed_at: datetime | None = None
+    completion_notes: str | None = None
+
+
+class AgentDecision(Model):
+    kind: TicketKind
+    priority: TicketPriority
+    safety_flags: list[str] = Field(default_factory=list)
+    objective: str
+    selected_action: Literal[
+        "answer_enquiry",
+        "inspect_temperature",
+        "investigate_incident",
+        "escalate",
+    ]
+    confidence: float = Field(ge=0, le=1)
+    rationale: str
+    user_update: str
+
+
+class ApprovalRequest(Model):
+    approved: bool
+    reason: str = Field(default="", max_length=500)
+
+
+class TicketDetail(Model):
+    ticket: Ticket
+    events: list[TicketEvent]
+    actions: list[ActionRecord]
+    work_order: WorkOrder | None = None
+
+
+class DashboardMetrics(Model):
+    received: int
+    active: int
+    resolved: int
+    autonomous_resolutions: int
+    needs_approval: int
+    escalated: int
+    human_touches_saved: int
+    verified_closures: int

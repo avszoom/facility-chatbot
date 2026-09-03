@@ -1,0 +1,20 @@
+[
+  {
+    "title": "Fitness center operating hours",
+    "content": "The Building Alpha fitness center is open Monday through Friday from 6:00 AM to 10:00 PM, and weekends from 8:00 AM to 8:00 PM. Access requires an active tenant badge.",
+    "source": "Building Alpha Tenant Handbook · Amenities · revised August 2026",
+    "keywords": ["gym", "fitness", "hours", "open", "close", "timings", "amenity"]
+  },
+  {
+    "title": "Loading dock deliveries",
+    "content": "Loading dock deliveries require a reservation between 7:00 AM and 5:00 PM on weekdays.",
+    "source": "Building Alpha Operations Manual · Deliveries · revised August 2026",
+    "keywords": ["loading", "dock", "delivery", "reservation", "hours"]
+  },
+  {
+    "title": "Conference room comfort policy",
+    "content": "Occupied conference rooms may be adjusted between 68°F and 75°F. Changes outside that range require facilities approval.",
+    "source": "Building Alpha Energy and Comfort Policy · section 4.2",
+    "keywords": ["conference", "temperature", "warm", "cold", "setpoint", "comfort"]
+  }
+]

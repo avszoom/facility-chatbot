@@ -1,0 +1,38 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Protocol
+
+from backend.app.domain.models import Ticket, WorkOrder
+
+
+class KnowledgePort(Protocol):
+    def search(self, query: str) -> dict[str, str] | None: ...
+
+
+class BuildingPort(Protocol):
+    def asset_at(self, location_id: str, asset_type: str | None = None) -> dict[str, Any] | None: ...
+    def telemetry(self, asset_id: str) -> dict[str, Any]: ...
+    def history(self, asset_id: str) -> list[dict[str, Any]]: ...
+    def set_temperature_setpoint(self, asset_id: str, value: float) -> dict[str, Any]: ...
+    def complete_incident_repair(self, asset_id: str) -> dict[str, Any]: ...
+    def verify(self, ticket: Ticket) -> dict[str, Any]: ...
+    def set_verification_failure(self, ticket_id: str, enabled: bool) -> None: ...
+
+
+class NotificationPort(Protocol):
+    def send(self, ticket: Ticket, message: str, audience: str, idempotency_key: str) -> dict[str, Any]: ...
+
+
+class WorkOrderPort(Protocol):
+    def create(
+        self,
+        ticket: Ticket,
+        *,
+        asset_id: str,
+        trade: str,
+        procedure: str,
+        due_at: datetime,
+        idempotency_key: str,
+    ) -> WorkOrder: ...
+    def complete(self, ticket_id: str, notes: str) -> WorkOrder: ...
