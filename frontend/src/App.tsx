@@ -3,152 +3,98 @@ import { api, apiBase } from "./api";
 import { humanize } from "./format";
 import type { Metrics, Ticket, TicketDetail, TicketEvent, TicketStatus } from "./types";
 
-const emptyMetrics: Metrics = {
-  received: 0, active: 0, resolved: 0, autonomous_resolutions: 0,
-  needs_approval: 0, escalated: 0, human_touches_saved: 0, verified_closures: 0,
+type View = "inbox" | "building" | "people";
+type Occupant = { name: string; initials: string; role: string; company: string; floor: string; email: string; phone: string; access: string };
+
+const occupants: Record<string, Occupant> = {
+  "Priya Shah": { name: "Priya Shah", initials: "PS", role: "Product Manager", company: "Northstar Labs", floor: "Floor 5 · 5E-18", email: "priya.shah@northstar.example", phone: "+1 212 555 0148", access: "Employee · 24/7" },
+  "Marcus Lee": { name: "Marcus Lee", initials: "ML", role: "Client Partner", company: "Northstar Labs", floor: "Floor 4 · 4W-07", email: "marcus.lee@northstar.example", phone: "+1 212 555 0162", access: "Employee · 06:00–22:00" },
+  "Elena Garcia": { name: "Elena Garcia", initials: "EG", role: "Office Operations", company: "Northstar Labs", floor: "Floor 7 · 7E-02", email: "elena.garcia@northstar.example", phone: "+1 212 555 0191", access: "Facilities coordinator" },
+  "Building Occupant": { name: "Building Occupant", initials: "BO", role: "Registered occupant", company: "Northstar Labs", floor: "Building A", email: "occupant@northstar.example", phone: "+1 212 555 0100", access: "Standard building access" },
 };
 
+const locationDirectory = {
+  "BLDG-A-F01-FITNESS": { name: "Fitness Center", floor: "Floor 1", zone: "Amenity · Z-1F", occupancy: "18 / 40", sensor: "AQ-101", reading: "31 AQI", state: "Normal" },
+  "BLDG-A-F04-CONF-4B": { name: "Conference Room 4B", floor: "Floor 4", zone: "Meeting · Z-4B", occupancy: "8 / 12", sensor: "TMP-4B-02", reading: "72.7°F", state: "Normal" },
+  "BLDG-A-F07-EAST": { name: "East Office Zone", floor: "Floor 7", zone: "Office · Z-7E", occupancy: "46 / 62", sensor: "ELEC-7A", reading: "126.4°F", state: "Alert" },
+  "BLDG-A-LOBBY": { name: "Main Lobby", floor: "Ground floor", zone: "Reception · Z-G1", occupancy: "23 people", sensor: "OCC-G1-01", reading: "23 present", state: "Normal" },
+};
+
+const sensorRows = [
+  { id: "TMP-4B-02", area: "Conference Room 4B", type: "Temperature", value: "72.7°F", target: "68–75°F", state: "Normal", seen: "8 sec ago" },
+  { id: "ELEC-7A", area: "Floor 7 east panel", type: "Cabinet temperature", value: "126.4°F", target: "< 95°F", state: "Critical", seen: "4 sec ago" },
+  { id: "AQ-101", area: "Fitness Center", type: "Air quality", value: "31 AQI", target: "< 50 AQI", state: "Normal", seen: "21 sec ago" },
+  { id: "OCC-G1-01", area: "Main Lobby", type: "Occupancy", value: "23", target: "≤ 80", state: "Normal", seen: "12 sec ago" },
+  { id: "LEAK-B2-04", area: "Basement plant room", type: "Water leak", value: "Dry", target: "Dry", state: "Normal", seen: "33 sec ago" },
+];
+
+const emptyMetrics: Metrics = { received: 0, active: 0, resolved: 0, autonomous_resolutions: 0, needs_approval: 0, escalated: 0, human_touches_saved: 0, verified_closures: 0 };
 const activeStatuses = new Set<TicketStatus>(["new", "triaging", "working", "waiting_technician", "waiting_verification"]);
-const stageIndex: Record<TicketStatus, number> = {
-  new: 0, triaging: 1, working: 2, needs_approval: 3,
-  waiting_technician: 3, waiting_verification: 4, resolved: 5, escalated: 5,
-};
-const activityCopy: Record<TicketStatus, { title: string; detail: string }> = {
-  new: { title: "Request received", detail: "A durable triage job is queued for the operations agent." },
-  triaging: { title: "Agent is analyzing the request", detail: "Reviewing intent, location context, safety language, and eligible actions." },
-  working: { title: "Agent is executing the plan", detail: "The selected action is being checked against policy before execution." },
-  needs_approval: { title: "A human decision is required", detail: "The agent prepared the action and paused at a policy checkpoint." },
-  waiting_technician: { title: "Technician work is in progress", detail: "State is saved. The agent will resume automatically when work completes." },
-  waiting_verification: { title: "Agent is verifying the outcome", detail: "Fresh operational evidence is being checked before closure." },
-  resolved: { title: "Outcome completed", detail: "The request reached a verified or grounded resolution." },
-  escalated: { title: "Transferred for operator review", detail: "Automation stopped safely and preserved the full working record." },
-};
-const eventTone = (event: TicketEvent) => event.event_type.includes("failed") || event.event_type.includes("escalated")
-  ? "danger" : event.event_type.includes("approval") ? "approval"
-    : event.event_type.includes("verified") || event.event_type.includes("resolved") ? "success" : "neutral";
+const stageIndex: Record<TicketStatus, number> = { new: 0, triaging: 1, working: 2, needs_approval: 3, waiting_technician: 3, waiting_verification: 4, resolved: 5, escalated: 5 };
+const activityCopy: Record<TicketStatus, string> = { new: "Queued for agent pickup", triaging: "Reading the email and checking context", working: "Executing the selected plan", needs_approval: "Waiting for your approval", waiting_technician: "Technician work is in progress", waiting_verification: "Checking fresh sensor evidence", resolved: "Request completed", escalated: "Transferred for staff review" };
+const initials = (name: string) => name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+const ticketTime = (value: string) => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(value));
+const eventTone = (event: TicketEvent) => event.event_type.includes("failed") || event.event_type.includes("escalated") ? "danger" : event.event_type.includes("approval") ? "attention" : event.event_type.includes("verified") || event.event_type.includes("resolved") ? "success" : "neutral";
 
-function LiveWork({ ticket, events }: { ticket: Ticket; events: TicketEvent[] }) {
-  const current = activityCopy[ticket.status];
-  const active = activeStatuses.has(ticket.status);
+function occupantFor(ticket: Ticket): Occupant {
+  return occupants[ticket.requester] || { name: ticket.requester, initials: initials(ticket.requester), role: "Building visitor", company: "Guest record", floor: ticket.location_id, email: `${ticket.requester.toLowerCase().replaceAll(" ", ".")}@guest.example`, phone: "Not provided", access: "Visitor access" };
+}
+function locationFor(ticket: Ticket) {
+  return locationDirectory[ticket.location_id as keyof typeof locationDirectory] || { name: ticket.location_id, floor: "Building A", zone: "Unmapped zone", occupancy: "Unknown", sensor: "No linked sensor", reading: "—", state: "Review" };
+}
+
+function AgentProgress({ ticket }: { ticket: Ticket }) {
   const labels = ["Received", "Analyze", "Act", "Coordinate", "Verify", "Complete"];
-  return <section className={`live-work ${active ? "is-live" : ""}`}>
-    <div className="live-summary">
-      <span className="agent-orb"><i /></span>
-      <div><p>{active ? "AGENT WORKING" : "WORKFLOW STATUS"}</p><h3>{current.title}</h3><span>{ticket.waiting_reason || current.detail}</span></div>
-      <small>{events.length} recorded events</small>
-    </div>
-    <div className="workflow-rail">
-      {labels.map((label, index) => <div className={index < stageIndex[ticket.status] ? "done" : index === stageIndex[ticket.status] ? "current" : ""} key={label}><i>{index < stageIndex[ticket.status] ? "✓" : index + 1}</i><span>{label}</span></div>)}
-    </div>
-  </section>;
+  const current = stageIndex[ticket.status];
+  return <div className="agent-progress"><div className="agent-now"><span className={activeStatuses.has(ticket.status) ? "pulse" : "complete-mark"}>AI</span><div><b>{activityCopy[ticket.status]}</b><small>Facility Operations Agent · {humanize(ticket.status)}</small></div></div><div className="progress-track">{labels.map((label, index) => <div className={index < current ? "done" : index === current ? "current" : ""} key={label}><i>{index < current ? "✓" : index + 1}</i><span>{label}</span></div>)}</div></div>;
+}
+
+function AppShell({ view, setView, metrics, children }: { view: View; setView: (view: View) => void; metrics: Metrics; children: React.ReactNode }) {
+  return <div className="app-shell"><aside className="app-nav"><div className="app-logo"><span>BO</span><div>BuildingOps<small>Workplace Services</small></div></div><nav aria-label="Primary navigation"><button className={view === "inbox" ? "active" : ""} onClick={() => setView("inbox")}><i>▣</i><span>Request inbox</span><b>{metrics.active + metrics.needs_approval}</b></button><button className={view === "building" ? "active" : ""} onClick={() => setView("building")}><i>▥</i><span>Building</span></button><button className={view === "people" ? "active" : ""} onClick={() => setView("people")}><i>◎</i><span>Occupants</span></button></nav><div className="nav-status"><span /><div><b>Agent online</b><small>Monitoring requests</small></div></div><div className="user-card"><span>MR</span><div><b>Maya Roberts</b><small>Front desk · Building A</small></div></div></aside><div className="app-body">{children}</div></div>;
+}
+
+function Topbar({ view, connection, onCreate }: { view: View; connection: string; onCreate: () => void }) {
+  const titles = { inbox: ["Request inbox", "Monitor incoming mail and agent work"], building: ["Building operations", "Live spaces, assets and sensor conditions"], people: ["Occupant directory", "People, access and workplace context"] };
+  return <header className="topbar"><div><p>Building A · New York Headquarters</p><h1>{titles[view][0]}</h1><span>{titles[view][1]}</span></div><div className="top-actions"><span className={`connection ${connection}`}><i />{connection === "live" ? "Live" : "Connecting"}</span><button className="icon-button" aria-label="Notifications">◉<b>1</b></button><button onClick={onCreate}>＋ New request</button></div></header>;
+}
+
+function MailPreview({ ticket, events }: { ticket: Ticket; events: TicketEvent[] }) {
+  const message = [...events].reverse().find((event) => event.event_type === "approval.requested" || event.event_type === "message.sent");
+  const requiresAction = ticket.status === "needs_approval";
+  return <section className={`mail-preview ${requiresAction ? "requires-action" : ""}`}><div className="panel-heading"><div><p>SIMULATED EMAIL</p><h3>{requiresAction ? "Action required" : message ? "Latest agent update" : "No email sent yet"}</h3></div><span>Not sent externally</span></div>{message ? <><div className="mail-meta"><span className="agent-avatar">AI</span><div><b>BuildingOps Agent</b><small>To: Maya Roberts · Front Desk</small></div><time>{ticketTime(message.created_at)}</time></div><strong>{requiresAction ? `Approval needed · ${ticket.ticket_id}` : `${ticket.ticket_id} · Request update`}</strong><p>{message.summary}</p></> : <p className="placeholder-copy">The agent will create an email here when it needs a decision or has a meaningful update.</p>}</section>;
+}
+
+type InboxProps = { tickets: Ticket[]; metrics: Metrics; selectedId: string; detail: TicketDetail | null; busy: boolean; onSelect: (id: string) => void; onCreate: () => void; onLoad: () => void; onProcess: () => void; onApprove: (approved: boolean) => void };
+function InboxView({ tickets, metrics, selectedId, detail, busy, onSelect, onCreate, onLoad, onProcess, onApprove }: InboxProps) {
+  const [filter, setFilter] = useState<"all" | "open" | "waiting">("all");
+  const sortedEvents = useMemo(() => [...(detail?.events || [])].reverse(), [detail]);
+  const occupant = detail ? occupantFor(detail.ticket) : null;
+  const location = detail ? locationFor(detail.ticket) : null;
+  const filteredTickets = tickets.filter((ticket) => filter === "all" || (filter === "open" && !["resolved", "escalated"].includes(ticket.status)) || (filter === "waiting" && ["needs_approval", "waiting_technician", "waiting_verification"].includes(ticket.status)));
+  return <><section className="kpi-row"><article><span className="kpi-icon blue">✉</span><div><small>Incoming today</small><strong>{metrics.received}</strong><em>All request channels</em></div></article><article><span className="kpi-icon violet">AI</span><div><small>Agent working</small><strong>{metrics.active}</strong><em>Live workflows</em></div></article><article><span className="kpi-icon amber">!</span><div><small>Needs your input</small><strong>{metrics.needs_approval}</strong><em>Approval requested</em></div></article><article><span className="kpi-icon green">✓</span><div><small>Completed</small><strong>{metrics.resolved}</strong><em>{metrics.verified_closures} verified</em></div></article></section>
+    <section className="workdesk"><aside className="mailbox"><div className="mailbox-head"><div><h2>Requests</h2><span>{tickets.length} conversations</span></div><button className="mini-action" onClick={onCreate}>＋</button></div><div className="mailbox-tools"><button className={filter === "all" ? "selected" : ""} onClick={() => setFilter("all")}>All</button><button className={filter === "open" ? "selected" : ""} onClick={() => setFilter("open")}>Open <b>{metrics.active + metrics.needs_approval}</b></button><button className={filter === "waiting" ? "selected" : ""} onClick={() => setFilter("waiting")}>Waiting</button></div><div className="mail-list">{filteredTickets.length ? filteredTickets.map((ticket) => <button className={`mail-row ${selectedId === ticket.ticket_id ? "selected" : ""}`} onClick={() => onSelect(ticket.ticket_id)} key={ticket.ticket_id}><span className={`sender-avatar priority-${ticket.priority}`}>{initials(ticket.requester)}</span><span className="mail-copy"><span><b>{ticket.requester}</b><time>{ticketTime(ticket.updated_at)}</time></span><strong>{ticket.subject}</strong><small>{ticket.waiting_reason || ticket.description}</small><em className={`status ${ticket.status}`}>{humanize(ticket.status)}</em></span></button>) : <div className="empty-state"><b>No matching request mail</b><span>Choose another filter or create a new request.</span></div>}</div><div className="mailbox-footer"><button onClick={onLoad} disabled={busy}>Load sample workspace</button><button onClick={onProcess} disabled={busy}>Process scheduled work</button></div></aside>
+      <main className="request-workspace">{!detail ? <div className="empty-detail"><span>✉</span><h2>Select a request</h2><p>The message, agent work, and related workplace records will appear here.</p></div> : <><div className="request-title"><div><span className="record-type">REQUEST · {detail.ticket.ticket_id}</span><h2>{detail.ticket.subject}</h2><p>Received by email · {ticketTime(detail.ticket.updated_at)}</p></div><span className={`status large ${detail.ticket.status}`}>{humanize(detail.ticket.status)}</span></div><article className="incoming-message"><div className="mail-meta"><span className="sender-avatar">{occupant?.initials}</span><div><b>{detail.ticket.requester}</b><small>{occupant?.email} · To: Facilities Reception</small></div><time>{ticketTime(detail.ticket.updated_at)}</time></div><h3>{detail.ticket.subject}</h3><p>{detail.ticket.description}</p></article><AgentProgress ticket={detail.ticket} />{detail.ticket.status === "needs_approval" && <div className="decision-bar"><div><span>!</span><div><b>Your approval is needed</b><small>The agent recommends a qualified electrical technician. It will not operate safety-critical equipment.</small></div></div><div><button className="secondary" onClick={() => onApprove(false)} disabled={busy}>Decline</button><button onClick={() => onApprove(true)} disabled={busy}>Approve dispatch</button></div></div>}<div className="record-tabs"><b>Activity</b><span>Actions {detail.actions.length}</span><span>Work order {detail.work_order ? "1" : "0"}</span></div><div className="activity-list">{sortedEvents.map((event) => <article key={event.event_id}><span className={`event-icon ${eventTone(event)}`}>{event.event_type === "message.sent" ? "✉" : event.event_type.includes("verification") ? "✓" : event.event_type.includes("approval") ? "!" : "AI"}</span><div><span><b>{humanize(event.event_type)}</b><time>{ticketTime(event.created_at)}</time></span><p>{event.summary}</p><small>{event.actor}</small></div></article>)}</div></>}</main>
+      <aside className="context-panel">{detail && occupant && location ? <><section className="context-card occupant-card"><div className="panel-heading"><div><p>REQUESTER</p><h3>Occupant record</h3></div><button aria-label="More occupant actions">•••</button></div><div className="person-summary"><span>{occupant.initials}</span><div><b>{occupant.name}</b><small>{occupant.role}</small><em>{occupant.company}</em></div></div><dl><div><dt>Email</dt><dd>{occupant.email}</dd></div><div><dt>Phone</dt><dd>{occupant.phone}</dd></div><div><dt>Workplace</dt><dd>{occupant.floor}</dd></div><div><dt>Access</dt><dd>{occupant.access}</dd></div></dl></section><section className="context-card"><div className="panel-heading"><div><p>LOCATION</p><h3>{location.name}</h3></div><span className={`condition ${location.state.toLowerCase()}`}>{location.state}</span></div><div className="location-meta"><span>{location.floor}</span><span>{location.zone}</span><span>{location.occupancy} occupied</span></div><div className="sensor-reading"><div><small>LINKED SENSOR</small><b>{location.sensor}</b></div><strong>{location.reading}</strong></div><div className="sparkline" aria-label="Sensor reading trend"><i /><i /><i /><i /><i /><i /><i /><i /></div><small className="freshness"><span /> Live reading · updated 8 seconds ago</small></section><MailPreview ticket={detail.ticket} events={detail.events} /></> : <div className="empty-context">Related occupant and building records appear with the selected request.</div>}</aside></section></>;
+}
+
+function BuildingView({ tickets }: { tickets: Ticket[] }) {
+  return <section className="register-view"><div className="register-summary"><div><p>FACILITY MASTER RECORD</p><h2>Building A</h2><span>New York Headquarters · 8 floors · 184,000 sq ft</span></div><div><article><small>Occupancy</small><b>312 / 480</b><span>65% utilized</span></article><article><small>Connected sensors</small><b>148</b><span>146 online</span></article><article><small>Open requests</small><b>{tickets.filter((ticket) => !["resolved", "escalated"].includes(ticket.status)).length}</b><span>Across 4 zones</span></article><article><small>Building health</small><b>94%</b><span className="good">Operational</span></article></div></div><div className="facility-grid"><section className="register-card floor-stack"><div className="register-head"><div><p>SPACES</p><h3>Floor and zone status</h3></div><button>View floor plans</button></div>{Object.entries(locationDirectory).map(([id, item]) => <article key={id}><span className="floor-badge">{item.floor.replace("Floor ", "F")}</span><div><b>{item.name}</b><small>{item.zone} · {item.occupancy}</small></div><span className={`condition ${item.state.toLowerCase()}`}>{item.state}</span></article>)}</section><section className="register-card sensor-table"><div className="register-head"><div><p>BUILDING MANAGEMENT SYSTEM</p><h3>Live sensor register</h3></div><span className="live-label"><i /> Live</span></div><table><thead><tr><th>Sensor</th><th>Area</th><th>Measurement</th><th>Reading</th><th>Target</th><th>Status</th><th>Updated</th></tr></thead><tbody>{sensorRows.map((sensor) => <tr key={sensor.id}><td><b>{sensor.id}</b></td><td>{sensor.area}</td><td>{sensor.type}</td><td><strong>{sensor.value}</strong></td><td>{sensor.target}</td><td><span className={`condition ${sensor.state.toLowerCase()}`}>{sensor.state}</span></td><td>{sensor.seen}</td></tr>)}</tbody></table></section></div></section>;
+}
+
+function PeopleView({ tickets }: { tickets: Ticket[] }) {
+  const [query, setQuery] = useState("");
+  const people = Object.values(occupants).filter((person) => `${person.name} ${person.company} ${person.role} ${person.email}`.toLowerCase().includes(query.toLowerCase()));
+  return <section className="register-view"><div className="people-toolbar"><div><p>PEOPLE DIRECTORY</p><h2>Building occupants</h2><span>Active people, access status, workplace and service history</span></div><label>⌕<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search occupant or company" /></label></div><section className="register-card people-table"><table><thead><tr><th>Occupant</th><th>Company</th><th>Workplace</th><th>Contact</th><th>Access profile</th><th>Requests</th><th>Status</th></tr></thead><tbody>{people.map((person) => <tr key={person.email}><td><div className="table-person"><span>{person.initials}</span><div><b>{person.name}</b><small>{person.role}</small></div></div></td><td>{person.company}</td><td>{person.floor}</td><td><b className="email-value">{person.email}</b><small>{person.phone}</small></td><td>{person.access}</td><td>{tickets.filter((ticket) => ticket.requester === person.name).length}</td><td><span className="condition normal">Active</span></td></tr>)}</tbody></table>{people.length === 0 && <div className="empty-state"><b>No matching occupants</b><span>Try a name, role, company, or email address.</span></div>}</section></section>;
 }
 
 export default function App() {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [metrics, setMetrics] = useState(emptyMetrics);
-  const [selectedId, setSelectedId] = useState("");
-  const [detail, setDetail] = useState<TicketDetail | null>(null);
-  const [runtime, setRuntime] = useState("connecting");
-  const [connection, setConnection] = useState<"live" | "reconnecting">("reconnecting");
-  const [error, setError] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  const refresh = useCallback(async () => {
-    try {
-      const [nextTickets, nextMetrics, system] = await Promise.all([api.tickets(), api.metrics(), api.system()]);
-      setTickets(nextTickets); setMetrics(nextMetrics); setRuntime(system.providers.agent_runtime); setError("");
-      setSelectedId((current) => current || nextTickets[0]?.ticket_id || "");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to reach the operations API"); }
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-    const polling = window.setInterval(() => void refresh(), 600);
-    return () => window.clearInterval(polling);
-  }, [refresh]);
+  const [view, setView] = useState<View>("inbox"); const [tickets, setTickets] = useState<Ticket[]>([]); const [metrics, setMetrics] = useState(emptyMetrics); const [selectedId, setSelectedId] = useState(""); const [detail, setDetail] = useState<TicketDetail | null>(null); const [connection, setConnection] = useState<"live" | "reconnecting">("reconnecting"); const [error, setError] = useState(""); const [creating, setCreating] = useState(false); const [busy, setBusy] = useState(false);
+  const refresh = useCallback(async () => { try { const [nextTickets, nextMetrics] = await Promise.all([api.tickets(), api.metrics()]); setTickets(nextTickets); setMetrics(nextMetrics); setError(""); setSelectedId((current) => current || nextTickets[0]?.ticket_id || ""); } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to reach the operations service"); } }, []);
+  useEffect(() => { void refresh(); const polling = window.setInterval(() => void refresh(), 600); return () => window.clearInterval(polling); }, [refresh]);
   useEffect(() => { if (selectedId) void api.ticket(selectedId).then(setDetail).catch(() => setDetail(null)); }, [selectedId, tickets]);
-  useEffect(() => {
-    const stream = new EventSource(`${apiBase}/api/events`);
-    stream.onopen = () => setConnection("live"); stream.onerror = () => setConnection("reconnecting");
-    stream.onmessage = () => void refresh();
-    return () => stream.close();
-  }, [refresh]);
-
-  const operate = async (action: () => Promise<unknown>) => {
-    setBusy(true);
-    try { await action(); await refresh(); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "The operation could not be completed"); }
-    finally { setBusy(false); }
-  };
-  const loadSamples = () => operate(async () => {
-    const loaded = await api.loadSampleRequests();
-    setSelectedId(loaded[0]?.ticket_id || "");
-  });
-  const create = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    await operate(async () => {
-      const ticket = await api.create({
-        subject: String(form.get("subject")), description: String(form.get("description")),
-        requester: String(form.get("requester")), location_id: String(form.get("location_id")),
-      });
-      setTickets((current) => [ticket, ...current.filter((item) => item.ticket_id !== ticket.ticket_id)]);
-      setSelectedId(ticket.ticket_id); setDetail(await api.ticket(ticket.ticket_id)); setCreating(false);
-    });
-  };
-  const sortedEvents = useMemo(() => [...(detail?.events || [])].reverse(), [detail]);
-
-  return <main>
-    <nav>
-      <div className="brand"><span>BO</span><div>BuildingOps<small>Autopilot</small></div></div>
-      <div className="nav-actions">
-        <div className={`runtime ${connection}`}><i /> {connection === "live" ? "Connected" : "Reconnecting"}<small>{runtime}</small></div>
-        <button onClick={() => setCreating(true)}>+ Create request</button>
-      </div>
-    </nav>
-
-    <header>
-      <div><p className="eyebrow">OPERATIONS CONTROL CENTER</p><h1>Facility work,<br /><em>continuously handled.</em></h1><p className="lede">Every request is triaged, worked within policy, coordinated across people and systems, and verified before closure.</p></div>
-      <div className="workspace-controls"><button disabled={busy} onClick={() => setCreating(true)}>Create facility request</button><button className="ghost" disabled={busy} onClick={loadSamples}>Load sample requests</button><button className="text-button" disabled={busy} onClick={() => operate(() => api.processScheduled())}>Process scheduled work →</button></div>
-    </header>
-
-    <section className="metrics">
-      {[["Requests received", metrics.received], ["In progress", metrics.active], ["Resolved outcomes", metrics.resolved], ["Human touches saved", metrics.human_touches_saved], ["Verified closures", metrics.verified_closures]].map(([label, value]) => <article key={label}><strong>{value}</strong><span>{label}</span></article>)}
-    </section>
-    {error && <p className="error">{error}</p>}
-
-    <section className="operations">
-      <aside className="inbox">
-        <div className="section-title"><div><p className="eyebrow">PRIORITIZED WORK</p><h2>Request queue</h2></div><span>{tickets.length}</span></div>
-        <div className="filters"><b>All requests</b><span>Needs approval {metrics.needs_approval}</span><span>Resolved {metrics.resolved}</span></div>
-        <div className="ticket-list">{tickets.length === 0 ? <div className="empty-queue"><h3>No open requests</h3><p>Create a request to watch the agent work it in real time.</p><button onClick={() => setCreating(true)}>Create first request</button></div> : tickets.map((ticket) => <button className={`ticket-row ${selectedId === ticket.ticket_id ? "selected" : ""}`} key={ticket.ticket_id} onClick={() => setSelectedId(ticket.ticket_id)}>
-          <span className={`priority-dot ${ticket.priority} ${activeStatuses.has(ticket.status) ? "active" : ""}`} />
-          <span className="ticket-copy"><small>{ticket.ticket_id} · {ticket.location_id}</small><strong>{ticket.subject}</strong><span>{ticket.waiting_reason || ticket.description}</span></span>
-          <span className={`status ${ticket.status}`}>{humanize(ticket.status)}</span>
-        </button>)}</div>
-      </aside>
-
-      <section className="detail">
-        {!detail ? <div className="empty"><span className="empty-icon">↗</span><b>Select a request</b><span>The live working record will appear here.</span></div> : <>
-          <div className="detail-head"><div><p className="eyebrow">{detail.ticket.ticket_id} · {humanize(detail.ticket.kind)}</p><h2>{detail.ticket.subject}</h2><p>{detail.ticket.description}</p></div><div className={`outcome ${detail.ticket.status}`}>{humanize(detail.ticket.status)}<small>{detail.ticket.confidence ? `${Math.round(detail.ticket.confidence * 100)}% decision confidence` : "Awaiting analysis"}</small></div></div>
-          <div className="context-strip"><span><small>Requester</small>{detail.ticket.requester}</span><span><small>Location</small>{detail.ticket.location_id}</span><span><small>Owner</small>{detail.ticket.assigned_owner}</span>{detail.ticket.safety_flags.length > 0 && <span className="safety"><small>Safety signals</small>{detail.ticket.safety_flags.length} detected</span>}</div>
-          <LiveWork ticket={detail.ticket} events={detail.events} />
-
-          {detail.ticket.status === "needs_approval" && <div className="approval-card"><div><p className="eyebrow">OPERATOR DECISION</p><h3>Qualified technician dispatch</h3><p>Investigation is complete. Policy OPS-APPROVAL-010 reserves this consequential action for an authorized operator.</p></div><div><button disabled={busy} onClick={() => operate(() => api.approve(detail.ticket.ticket_id, true))}>Approve dispatch</button><button className="ghost" disabled={busy} onClick={() => operate(() => api.approve(detail.ticket.ticket_id, false))}>Decline</button></div></div>}
-
-          <div className="proof-grid">
-            <div className="proof-column"><div className="column-title"><p className="eyebrow">CONTROL & EVIDENCE</p><h3>Actions taken</h3></div>
-              {detail.actions.map((action) => <article className="action-card" key={action.action_id}><div><span className={`risk ${action.risk_tier}`}>{humanize(action.risk_tier)}</span><small>{action.policy_rule}</small></div><h4>{humanize(action.action_type)}</h4><p>{action.rationale}</p><div className="change"><span><small>Before</small>{JSON.stringify(action.before_state)}</span><b>→</b><span><small>After</small>{Object.keys(action.after_state).length ? JSON.stringify(action.after_state) : "Awaiting authorization"}</span></div></article>)}
-              {detail.work_order && <article className="work-order"><div><span>WORK ORDER</span><b>{detail.work_order.work_order_id}</b></div><h4>{detail.work_order.technician}</h4><p>{detail.work_order.procedure}</p><strong>{humanize(detail.work_order.status)}</strong>{detail.work_order.completion_notes && <small>{detail.work_order.completion_notes}</small>}</article>}
-              {!detail.actions.length && <p className="muted">Actions and operational evidence will appear here as the agent works.</p>}
-            </div>
-            <div className="proof-column timeline"><div className="column-title"><p className="eyebrow">LIVE WORKING RECORD</p><h3>Activity stream <span className="streaming-dot" /></h3></div>{sortedEvents.map((event) => <article key={event.event_id}><i className={eventTone(event)} /><div><span>{humanize(event.event_type)}<small>{event.actor}</small></span><p>{event.summary}</p>{event.event_type === "verification.passed" && <b className="verified">✓ Outcome independently verified</b>}</div></article>)}</div>
-          </div>
-        </>}
-      </section>
-    </section>
-
-    {creating && <div className="modal" onMouseDown={() => setCreating(false)}><form onSubmit={create} onMouseDown={(event) => event.stopPropagation()}><div><p className="eyebrow">FACILITY SUPPORT</p><h2>Create a request</h2><p>The operations agent will begin working as soon as you submit.</p><button type="button" className="close" onClick={() => setCreating(false)}>×</button></div><label>Subject<input name="subject" required minLength={3} autoFocus placeholder="What needs attention?" /></label><label>Description<textarea name="description" required minLength={3} placeholder="Describe the question, condition, or issue…" /></label><div className="form-row"><label>Requester<input name="requester" required defaultValue="Building Occupant" /></label><label>Location<select name="location_id" defaultValue="BLDG-A-F04-CONF-4B"><option value="BLDG-A-F01-FITNESS">Fitness center</option><option value="BLDG-A-F04-CONF-4B">Conference Room 4B</option><option value="BLDG-A-F07-EAST">Floor 7 East</option><option value="BLDG-A-LOBBY">Main lobby</option></select></label></div><button disabled={busy}>Submit request</button></form></div>}
-  </main>;
+  useEffect(() => { const stream = new EventSource(`${apiBase}/api/events`); stream.onopen = () => setConnection("live"); stream.onerror = () => setConnection("reconnecting"); stream.onmessage = () => void refresh(); return () => stream.close(); }, [refresh]);
+  const operate = async (action: () => Promise<unknown>) => { setBusy(true); try { await action(); await refresh(); } catch (reason) { setError(reason instanceof Error ? reason.message : "The operation could not be completed"); } finally { setBusy(false); } };
+  const loadSamples = () => operate(async () => { const loaded = await api.loadSampleRequests(); setSelectedId(loaded.find((ticket) => ticket.ticket_id === "TKT-1003")?.ticket_id || loaded[0]?.ticket_id || ""); });
+  const create = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); await operate(async () => { const ticket = await api.create({ subject: String(form.get("subject")), description: String(form.get("description")), requester: String(form.get("requester")), location_id: String(form.get("location_id")) }); setTickets((current) => [ticket, ...current.filter((item) => item.ticket_id !== ticket.ticket_id)]); setSelectedId(ticket.ticket_id); setDetail(await api.ticket(ticket.ticket_id)); setCreating(false); setView("inbox"); }); };
+  return <AppShell view={view} setView={setView} metrics={metrics}><Topbar view={view} connection={connection} onCreate={() => setCreating(true)} />{error && <p className="error-banner">{error}</p>}{view === "inbox" && <InboxView tickets={tickets} metrics={metrics} selectedId={selectedId} detail={detail} busy={busy} onSelect={setSelectedId} onCreate={() => setCreating(true)} onLoad={loadSamples} onProcess={() => operate(() => api.processScheduled())} onApprove={(approved) => detail && operate(() => api.approve(detail.ticket.ticket_id, approved))} />}{view === "building" && <BuildingView tickets={tickets} />}{view === "people" && <PeopleView tickets={tickets} />}{creating && <div className="modal" onMouseDown={() => setCreating(false)}><form onSubmit={create} onMouseDown={(event) => event.stopPropagation()}><div className="modal-head"><div><p>NEW INCOMING REQUEST</p><h2>Create request mail</h2><span>Submit on behalf of an occupant. The agent will pick it up automatically.</span></div><button type="button" className="close" onClick={() => setCreating(false)}>×</button></div><label>Requester<input name="requester" list="occupant-list" required defaultValue="Building Occupant" /><datalist id="occupant-list">{Object.keys(occupants).map((name) => <option value={name} key={name} />)}</datalist></label><label>Subject<input name="subject" required minLength={3} autoFocus placeholder="Brief summary of the request" /></label><label>Message<textarea name="description" required minLength={3} placeholder="Paste or enter the occupant's request…" /></label><label>Building location<select name="location_id" defaultValue="BLDG-A-F04-CONF-4B"><option value="BLDG-A-F01-FITNESS">Floor 1 · Fitness Center</option><option value="BLDG-A-F04-CONF-4B">Floor 4 · Conference Room 4B</option><option value="BLDG-A-F07-EAST">Floor 7 · East Office Zone</option><option value="BLDG-A-LOBBY">Ground · Main Lobby</option></select></label><div className="modal-actions"><button type="button" className="secondary" onClick={() => setCreating(false)}>Cancel</button><button disabled={busy}>Submit to agent</button></div></form></div>}</AppShell>;
 }

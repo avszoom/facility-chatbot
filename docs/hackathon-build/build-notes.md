@@ -38,3 +38,12 @@
 - Added professional workspace API aliases while retaining hidden compatibility routes for existing automation.
 - Browser-verified two fresh requests: an unsupported display issue preserved its evidence and escalated safely; a supported comfort issue executed the policy-approved building action, independently verified the result, and closed automatically.
 - Verification: 14 Python tests, the frontend unit test and production build, all three workflow checks, and the secret scan passed.
+
+## 2026-09-03 — Receptionist workplace redesign
+
+- Reframed the primary user from a facilities operator to the Building A receptionist, with a dense enterprise work surface inspired by workplace service systems.
+- Replaced the generic request queue with an email-style inbox, incoming-message reader, linked agent workflow, approval controls, and simulated email preview clearly marked as not externally sent.
+- Added linked occupant master records beside each request, including role, company, workplace, contact, and access context.
+- Added Building and Occupants registers with floor/zone status, occupancy, sensor readings and thresholds, building health, request history counts, and working directory search.
+- Preserved live ticket updates, autonomous actions, verification, approvals, long-running technician work, local data boundaries, and the existing AWS-replaceable service ports.
+- Verification: 14 Python tests, frontend test and production build, all three workflow checks, and the secret scan passed.
