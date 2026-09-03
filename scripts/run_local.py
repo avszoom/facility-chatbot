@@ -10,6 +10,7 @@ def main() -> None:
     commands = [
         [sys.executable, "-m", "uvicorn", "backend.app.main:app", "--host", "127.0.0.1", "--port", "8000"],
         [sys.executable, "-m", "backend.app.scheduling.local_worker"],
+        [sys.executable, "-m", "backend.app.scheduling.local_simulator"],
         ["npm", "--prefix", "frontend", "run", "dev"],
     ]
     processes = [subprocess.Popen(command) for command in commands]

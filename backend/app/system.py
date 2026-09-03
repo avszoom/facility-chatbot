@@ -8,6 +8,7 @@ from backend.app.config import Settings
 from backend.app.repositories.ports import OperationsRepository
 from backend.app.repositories.sqlite import SQLiteOperationsRepository
 from backend.app.services.events import LocalEventBus
+from backend.app.services.simulation import BuildingSimulationService
 from backend.app.services.tickets import TicketService
 from backend.app.services.workflow import WorkflowService
 from backend.app.tools.building import LocalBuildingProvider
@@ -31,6 +32,7 @@ class ApplicationSystem:
     work_orders: WorkOrderPort
     tickets: TicketService
     workflow: WorkflowService
+    simulation: BuildingSimulationService
 
     def providers(self) -> dict[str, str]:
         return {
@@ -77,6 +79,14 @@ def build_system(settings: Settings | None = None) -> ApplicationSystem:
         technician_delay_seconds=settings.technician_delay_seconds,
         verification_delay_seconds=settings.verification_delay_seconds,
     )
+    simulation = BuildingSimulationService(
+        repository,
+        tickets,
+        building,
+        events,
+        enabled=settings.simulation_enabled,
+        interval_seconds=settings.simulation_interval_seconds,
+    )
     return ApplicationSystem(
         settings=settings,
         repository=repository,
@@ -88,4 +98,5 @@ def build_system(settings: Settings | None = None) -> ApplicationSystem:
         work_orders=work_orders,
         tickets=tickets,
         workflow=workflow,
+        simulation=simulation,
     )

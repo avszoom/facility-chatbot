@@ -140,3 +140,29 @@ class LocalBuildingProvider:
             f"verification_failure:{ticket_id}",
             {"enabled": True} if enabled else {},
         )
+
+    def inject_simulated_condition(self, condition: str) -> dict[str, Any]:
+        """Advance the local building world; AWS replaces this with real IoT telemetry."""
+        state = self._state()
+        if condition == "comfort_drift":
+            asset = state["assets"]["AHU-ZONE-4B"]
+            asset.update({"temperature_f": 77.2, "setpoint_f": 72.0, "status": "operational"})
+            state["history"]["AHU-ZONE-4B"].append(
+                {"minutes_ago": 0, "temperature_f": 77.2, "setpoint_f": 72.0}
+            )
+        elif condition == "electrical_overheat":
+            asset = state["assets"]["ELEC-PNL-7A"]
+            asset.update(
+                {
+                    "cabinet_temperature_f": 126.4,
+                    "current_amps": 58.1,
+                    "status": "fault",
+                    "fault": "heat-damaged feeder connection",
+                }
+            )
+            state["history"]["ELEC-PNL-7A"].append(
+                {"minutes_ago": 0, "cabinet_temperature_f": 126.4, "current_amps": 58.1}
+            )
+        state["updated_at"] = datetime.now(UTC).isoformat()
+        self.repository.set_state(self.STATE_KEY, state)
+        return {"condition": condition, "updated_at": state["updated_at"]}

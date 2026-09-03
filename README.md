@@ -16,9 +16,17 @@ Open <http://127.0.0.1:5173>. The API runs at <http://127.0.0.1:8000>.
 
 The default `AGENT_RUNTIME=deterministic` is credential-free and repeatable. Set `AGENT_RUNTIME=strands`, `AWS_REGION`, and `BEDROCK_MODEL_ID` to exercise the real Strands/Bedrock path with your AWS credentials. The UI shows the active runtime.
 
-## Hero demo
+`make run` starts four independently replaceable local processes: the API, web UI,
+durable operations worker, and building-world simulator. The simulator creates an
+occupant request or building condition every 45 seconds by default; set
+`SIMULATION_INTERVAL_SECONDS` to change the cadence, or
+`SIMULATION_ENABLED=false` to turn it off. The **Agent live** workspace shows both
+engines, the durable handoff between them, public decision summaries, tool outcomes,
+and continuously updated impact totals.
 
-1. Reset the three-ticket demo.
+## Scenario walkthrough
+
+1. Open Agent live and generate a building-world event, or wait for the next scheduled event.
 2. Show the gym enquiry already answered and closed from a cited source.
 3. Show the warm room’s policy-approved setpoint change and verified closure.
 4. Open the electrical incident, inspect correlated evidence, then approve dispatch.

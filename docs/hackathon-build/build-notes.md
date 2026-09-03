@@ -55,3 +55,12 @@
 - Added ten complete floor master records, selectable schematic floor maps, room names, area, occupancy, use, open-ticket counts, and normal/warning/critical health.
 - Added a fifty-device sensor register spanning every floor with temperature, CO₂, humidity, occupancy, and electrical telemetry, plus thresholds, health, and last-signal timing. Local simulation is explicitly labeled.
 - Lazy-loaded the 3D scene so the receptionist inbox and Tickets worklist remain lightweight.
+
+## 2026-09-03 — Continuous building world and agent live view
+
+- Split the running product into two independent engines connected only through the durable ticket boundary: a building-world simulator that produces occupant requests and equipment conditions, and an operations worker that consumes and resolves them.
+- Added six rotating scenarios across enquiries, comfort requests, access coordination, electrical incidents, delivery questions, and device faults. Building incidents mutate the local sensor/asset state before ticket creation so investigations inspect meaningful evidence.
+- Added durable simulator progress, configurable cadence, restart-safe scheduling, a manual event pulse, and explicit local/AWS adapter boundaries.
+- Added the Agent live workspace with world-engine and operations-engine status, active workflow progress, public agent decisions and tool outcomes, and cumulative actions, resolutions, human-needed cases, and estimated human touches saved.
+- Live verification: the simulator generated an amenities enquiry and a warm-room condition; the agent answered the enquiry and autonomously adjusted and independently verified the HVAC outcome.
+- Verification: 16 Python tests, 2 frontend test files, the production UI build, all three workflow checks, and the secret scan passed.

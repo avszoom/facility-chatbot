@@ -38,6 +38,7 @@ export interface Metrics {
 
 export interface TicketEvent {
   event_id: string;
+  ticket_id: string;
   actor: string;
   event_type: string;
   summary: string;
@@ -72,4 +73,35 @@ export interface TicketDetail {
   events: TicketEvent[];
   actions: ActionRecord[];
   work_order: WorkOrder | null;
+}
+
+export interface LiveOperations {
+  simulation: {
+    status: "online" | "paused";
+    sequence: number;
+    issues_generated: number;
+    last_tick: string | null;
+    next_tick: string;
+    interval_seconds: number;
+    last_event: {
+      type: string;
+      ticket_id: string;
+      subject: string;
+      location_id: string;
+      condition: { condition: string; updated_at: string };
+    } | null;
+  };
+  agent: {
+    status: string;
+    runtime: string;
+    active_tickets: Ticket[];
+  };
+  recent_events: TicketEvent[];
+  impact: {
+    actions_performed: number;
+    issues_resolved: number;
+    resolved_autonomously: number;
+    needs_user: number;
+    human_touches_saved: number;
+  };
 }

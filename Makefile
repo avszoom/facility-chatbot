@@ -1,4 +1,4 @@
-.PHONY: setup seed run run-api run-worker run-ui test test-agent verify-strands demo-check demo-rehearsal verify frontend-build secret-scan clean-data
+.PHONY: setup seed run run-api run-worker run-simulator run-ui test test-agent verify-strands demo-check demo-rehearsal verify frontend-build secret-scan clean-data
 
 PYTHON ?= .venv/bin/python
 PIP ?= .venv/bin/pip
@@ -19,6 +19,9 @@ run-api:
 
 run-worker:
 	$(PYTHON) -m backend.app.scheduling.local_worker
+
+run-simulator:
+	$(PYTHON) -m backend.app.scheduling.local_simulator
 
 run-ui:
 	npm --prefix frontend run dev

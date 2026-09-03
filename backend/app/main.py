@@ -43,6 +43,52 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
     def metrics():
         return runtime.repository.metrics()
 
+    @api.get("/api/operations/live")
+    def live_operations() -> dict:
+        tickets = runtime.tickets.list()
+        dashboard = runtime.repository.metrics()
+        recent_events = sorted(
+            (
+                event.model_dump(mode="json")
+                for ticket in tickets
+                for event in runtime.repository.list_events(ticket.ticket_id)
+            ),
+            key=lambda event: event["created_at"],
+            reverse=True,
+        )[:30]
+        actions = [
+            action
+            for ticket in tickets
+            for action in runtime.repository.list_actions(ticket.ticket_id)
+        ]
+        return {
+            "simulation": runtime.simulation.status(),
+            "agent": {
+                "status": "online",
+                "runtime": runtime.agent.name,
+                "active_tickets": [
+                    ticket.model_dump(mode="json")
+                    for ticket in tickets
+                    if ticket.status not in {"resolved", "escalated"}
+                ],
+            },
+            "recent_events": recent_events,
+            "impact": {
+                "actions_performed": sum(action.status == "completed" for action in actions),
+                "issues_resolved": dashboard.resolved,
+                "resolved_autonomously": dashboard.autonomous_resolutions,
+                "needs_user": dashboard.needs_approval + dashboard.escalated,
+                "human_touches_saved": dashboard.human_touches_saved,
+            },
+        }
+
+    @api.post("/api/simulation/pulse", response_model=Ticket)
+    def simulation_pulse():
+        ticket = runtime.simulation.tick(force=True)
+        if ticket is None:
+            raise HTTPException(status_code=409, detail="Building simulation is paused")
+        return ticket
+
     @api.get("/api/tickets", response_model=list[Ticket])
     def list_tickets():
         return runtime.tickets.list()
