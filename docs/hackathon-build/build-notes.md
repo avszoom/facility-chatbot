@@ -47,3 +47,11 @@
 - Added Building and Occupants registers with floor/zone status, occupancy, sensor readings and thresholds, building health, request history counts, and working directory search.
 - Preserved live ticket updates, autonomous actions, verification, approvals, long-running technician work, local data boundaries, and the existing AWS-replaceable service ports.
 - Verification: 14 Python tests, frontend test and production build, all three workflow checks, and the secret scan passed.
+
+## 2026-09-03 — Ticket worklist and building digital twin
+
+- Added a dedicated Tickets module separate from request email, including an SAP-style worklist, open/assigned filters, next-action status, and a prominent “My pending actions” queue for approvals and exceptions assigned to the receptionist.
+- Rebuilt Building as a black digital-twin workspace with a true interactive WebGL model of a ten-story smart building, floor selection from the model or building stack, orbit and zoom controls, and live operational status colors.
+- Added ten complete floor master records, selectable schematic floor maps, room names, area, occupancy, use, open-ticket counts, and normal/warning/critical health.
+- Added a fifty-device sensor register spanning every floor with temperature, CO₂, humidity, occupancy, and electrical telemetry, plus thresholds, health, and last-signal timing. Local simulation is explicitly labeled.
+- Lazy-loaded the 3D scene so the receptionist inbox and Tickets worklist remain lightweight.
