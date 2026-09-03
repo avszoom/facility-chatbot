@@ -29,3 +29,12 @@
 - Verification: 13 Python tests and 1 frontend test passed; production UI built; all three scenarios passed three consecutive rehearsals; secret scan passed; the installed Strands SDK and structured-output boundary passed structural verification.
 - Visual QA: the live local console rendered successfully at its compact breakpoint; approval → work order → technician completion → independent verification → closure was exercised through the UI.
 - Local limitation: a live Bedrock model invocation was not run because AWS credentials are not configured. The default deterministic adapter is deliberately labeled in the UI; `AGENT_RUNTIME=strands` selects the real SDK path.
+
+## 2026-09-03 — Professional operations experience refinement
+
+- Replaced presentation-oriented interface language with a professional operations control center and removed “demo” from every user-facing surface.
+- Added a complete request-intake modal, immediate optimistic queue insertion, 600 ms cross-process refresh, and a live six-stage workflow rail from receipt through completion.
+- Split triage into durable queued phases so New, Triaging, Working, coordination, verification, and final outcomes remain observable and restart-safe instead of completing inside one worker invocation.
+- Added professional workspace API aliases while retaining hidden compatibility routes for existing automation.
+- Browser-verified two fresh requests: an unsupported display issue preserved its evidence and escalated safely; a supported comfort issue executed the policy-approved building action, independently verified the result, and closed automatically.
+- Verification: 14 Python tests, the frontend unit test and production build, all three workflow checks, and the secret scan passed.

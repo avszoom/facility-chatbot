@@ -15,18 +15,22 @@ def exercise(case: str, *, restart: bool = False) -> None:
     with TemporaryDirectory() as directory:
         settings = Settings(
             database_path=Path(directory) / "demo.db",
+            intake_delay_seconds=0,
+            agent_analysis_seconds=0,
+            action_delay_seconds=0,
             technician_delay_seconds=0,
             verification_delay_seconds=0,
         )
         system = build_system(settings)
         system.tickets.seed_demo()
-        system.workflow.process_due(limit=10)
+        for _ in range(3):
+            system.workflow.process_due(limit=10)
         ids = {"enquiry": "TKT-1001", "service_request": "TKT-1002", "incident": "TKT-1003"}
         ticket_id = ids[case]
         if case == "incident":
             system.tickets.decide_approval(
                 ticket_id,
-                request=ApprovalRequest(approved=True, reason="Demo approval"),
+                request=ApprovalRequest(approved=True, reason="Operations approval"),
             )
         if restart:
             system = build_system(settings)

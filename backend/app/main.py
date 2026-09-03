@@ -78,18 +78,20 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
         runtime.workflow.process_due()
         return runtime.repository.get_ticket(ticket.ticket_id)
 
-    @api.post("/api/demo/seed", response_model=list[Ticket])
-    def seed_demo():
+    @api.post("/api/workspace/sample-requests", response_model=list[Ticket])
+    @api.post("/api/demo/seed", response_model=list[Ticket], include_in_schema=False)
+    def load_sample_requests():
         tickets = runtime.tickets.seed_demo()
-        runtime.workflow.process_due(limit=10)
         return [runtime.repository.get_ticket(ticket.ticket_id) for ticket in tickets]
 
-    @api.post("/api/demo/advance")
-    def advance_demo(seconds: float = Query(default=60, ge=0, le=3600)) -> dict:
+    @api.post("/api/workspace/process-scheduled")
+    @api.post("/api/demo/advance", include_in_schema=False)
+    def process_scheduled(seconds: float = Query(default=60, ge=0, le=3600)) -> dict:
         processed = runtime.workflow.process_due(now=datetime.now(UTC) + timedelta(seconds=seconds), limit=100)
         return {"processed": processed, "tickets": runtime.tickets.list()}
 
-    @api.post("/api/demo/failure/{ticket_id}")
+    @api.post("/api/workspace/verification-failure/{ticket_id}")
+    @api.post("/api/demo/failure/{ticket_id}", include_in_schema=False)
     def verification_failure(ticket_id: str, enabled: bool = True) -> dict:
         if not runtime.repository.get_ticket(ticket_id):
             raise missing(ticket_id)

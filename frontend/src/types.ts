@@ -21,6 +21,7 @@ export interface Ticket {
   confidence: number;
   assigned_owner: string;
   waiting_reason: string | null;
+  wake_at: string | null;
   updated_at: string;
 }
 

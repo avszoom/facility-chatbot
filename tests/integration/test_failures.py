@@ -15,7 +15,7 @@ def test_model_failure_retries_then_escalates_to_recoverable_state(system):
     system.agent = FailingAgent()
     system.workflow.agent = system.agent
     ticket = system.tickets.create(TicketCreate(subject="Unclear request", description="Please review this"))
-    for index in range(3):
+    for index in range(4):
         system.workflow.process_due(now=datetime.now(UTC) + timedelta(hours=index + 1))
     saved = system.repository.get_ticket(ticket.ticket_id)
     assert saved.status == TicketStatus.ESCALATED

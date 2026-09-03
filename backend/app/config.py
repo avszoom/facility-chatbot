@@ -18,6 +18,9 @@ class Settings:
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-20250514-v1:0"
     aws_region: str = "us-east-1"
     worker_poll_seconds: float = 0.25
+    intake_delay_seconds: float = 0.8
+    agent_analysis_seconds: float = 2.2
+    action_delay_seconds: float = 1.6
     technician_delay_seconds: float = 12.0
     verification_delay_seconds: float = 3.0
 
@@ -32,6 +35,9 @@ class Settings:
             ),
             aws_region=os.getenv("AWS_REGION", "us-east-1"),
             worker_poll_seconds=max(0.05, float(os.getenv("WORKER_POLL_SECONDS", "0.25"))),
+            intake_delay_seconds=max(0.0, float(os.getenv("INTAKE_DELAY_SECONDS", "0.8"))),
+            agent_analysis_seconds=max(0.0, float(os.getenv("AGENT_ANALYSIS_SECONDS", "2.2"))),
+            action_delay_seconds=max(0.0, float(os.getenv("ACTION_DELAY_SECONDS", "1.6"))),
             technician_delay_seconds=max(
                 0.0, float(os.getenv("TECHNICIAN_DELAY_SECONDS", "12"))
             ),

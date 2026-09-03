@@ -19,9 +19,16 @@ from backend.app.tools.building import LocalBuildingProvider
 
 
 class TicketService:
-    def __init__(self, repository: OperationsRepository, events: LocalEventBus):
+    def __init__(
+        self,
+        repository: OperationsRepository,
+        events: LocalEventBus,
+        *,
+        intake_delay_seconds: float = 0.8,
+    ):
         self.repository = repository
         self.events = events
+        self.intake_delay_seconds = intake_delay_seconds
 
     def _append(self, event: TicketEvent) -> None:
         if self.repository.append_event(event):
@@ -48,7 +55,7 @@ class TicketService:
                 job_id=f"JOB-{ticket.ticket_id}-TRIAGE",
                 ticket_id=ticket.ticket_id,
                 job_type="advance",
-                available_at=now,
+                available_at=now + timedelta(seconds=self.intake_delay_seconds),
             ),
         )
         self._append(

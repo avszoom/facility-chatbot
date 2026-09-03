@@ -59,7 +59,11 @@ def build_system(settings: Settings | None = None) -> ApplicationSystem:
     building = LocalBuildingProvider(repository)
     notifications = LocalNotificationProvider()
     work_orders = LocalWorkOrderProvider(repository)
-    tickets = TicketService(repository, events)
+    tickets = TicketService(
+        repository,
+        events,
+        intake_delay_seconds=settings.intake_delay_seconds,
+    )
     workflow = WorkflowService(
         repository,
         agent,
@@ -68,6 +72,8 @@ def build_system(settings: Settings | None = None) -> ApplicationSystem:
         notifications,
         work_orders,
         events,
+        agent_analysis_seconds=settings.agent_analysis_seconds,
+        action_delay_seconds=settings.action_delay_seconds,
         technician_delay_seconds=settings.technician_delay_seconds,
         verification_delay_seconds=settings.verification_delay_seconds,
     )

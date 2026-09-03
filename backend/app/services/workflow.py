@@ -34,6 +34,8 @@ class WorkflowService:
         work_orders: WorkOrderPort,
         events: LocalEventBus,
         *,
+        agent_analysis_seconds: float = 2.2,
+        action_delay_seconds: float = 1.6,
         technician_delay_seconds: float = 12,
         verification_delay_seconds: float = 3,
     ):
@@ -46,6 +48,8 @@ class WorkflowService:
         self.events = events
         self.policy = ActionPolicy()
         self.actions = ActionGateway(repository, self.policy)
+        self.agent_analysis_seconds = agent_analysis_seconds
+        self.action_delay_seconds = action_delay_seconds
         self.technician_delay_seconds = technician_delay_seconds
         self.verification_delay_seconds = verification_delay_seconds
 
@@ -130,7 +134,11 @@ class WorkflowService:
         if not ticket:
             return
         if job.job_type == "advance":
-            self._triage(ticket, job)
+            self._start_triage(ticket)
+        elif job.job_type == "agent_decide":
+            self._decide(ticket)
+        elif job.job_type == "execute_decision":
+            self._execute_decision(ticket, job)
         elif job.job_type == "dispatch_incident":
             self._dispatch_incident(ticket)
         elif job.job_type == "technician_complete":
@@ -140,12 +148,37 @@ class WorkflowService:
         else:
             raise ValueError(f"Unsupported job type {job.job_type}")
 
-    def _triage(self, ticket: Ticket, job: WorkflowJob) -> None:
-        if ticket.status not in {TicketStatus.NEW, TicketStatus.TRIAGING, TicketStatus.WORKING}:
+    def _start_triage(self, ticket: Ticket) -> None:
+        if ticket.status != TicketStatus.NEW:
             return
-        if ticket.status == TicketStatus.NEW:
-            self._transition(ticket, TicketStatus.TRIAGING)
-        self._event(ticket, "agent.started", "Strands began triage and selected an eligible next action.", payload={"runtime": self.agent.name}, key="AGENT-START")
+        wake = datetime.now(UTC) + timedelta(seconds=self.agent_analysis_seconds)
+        self._transition(
+            ticket,
+            TicketStatus.TRIAGING,
+            waiting="The agent is reading the request and checking operational context.",
+            wake_at=wake,
+            persist=False,
+        )
+        self.repository.save_ticket_and_job(
+            ticket,
+            WorkflowJob(
+                job_id=f"JOB-{ticket.ticket_id}-AGENT-DECIDE",
+                ticket_id=ticket.ticket_id,
+                job_type="agent_decide",
+                available_at=wake,
+            ),
+        )
+        self._event(
+            ticket,
+            "agent.started",
+            "The agent began triage and is reviewing the request, location, policy, and available operational context.",
+            payload={"runtime": self.agent.name, "stage": "analysis"},
+            key="AGENT-START",
+        )
+
+    def _decide(self, ticket: Ticket) -> None:
+        if ticket.status != TicketStatus.TRIAGING:
+            return
         knowledge_result = self.knowledge.search(f"{ticket.subject} {ticket.description}")
         context = {
             "eligible_actions": ["answer_enquiry", "inspect_temperature", "investigate_incident", "escalate"],
@@ -158,7 +191,6 @@ class WorkflowService:
         ticket.priority = decision.priority
         ticket.safety_flags = decision.safety_flags
         ticket.confidence = decision.confidence
-        self.repository.save_ticket(ticket)
         self._event(
             ticket,
             "agent.decision",
@@ -166,18 +198,43 @@ class WorkflowService:
             payload={**decision.model_dump(mode="json"), "runtime": self.agent.name},
             key="AGENT-DECISION",
         )
-        if ticket.status == TicketStatus.TRIAGING:
-            self._transition(ticket, TicketStatus.WORKING)
+        wake = datetime.now(UTC) + timedelta(seconds=self.action_delay_seconds)
+        self._transition(
+            ticket,
+            TicketStatus.WORKING,
+            waiting=f"The agent selected {decision.selected_action.replace('_', ' ')} and is preparing the next step.",
+            wake_at=wake,
+            persist=False,
+        )
+        self.repository.save_ticket_and_job(
+            ticket,
+            WorkflowJob(
+                job_id=f"JOB-{ticket.ticket_id}-EXECUTE-DECISION",
+                ticket_id=ticket.ticket_id,
+                job_type="execute_decision",
+                payload={
+                    "decision": decision.model_dump(mode="json"),
+                    "knowledge_result": knowledge_result,
+                },
+                available_at=wake,
+            ),
+        )
         self._send_update(ticket, decision.user_update, key="TRIAGE")
-        if decision.selected_action == "answer_enquiry":
-            self._answer_enquiry(ticket, knowledge_result)
-        elif decision.selected_action == "inspect_temperature":
+
+    def _execute_decision(self, ticket: Ticket, job: WorkflowJob) -> None:
+        if ticket.status != TicketStatus.WORKING:
+            return
+        selected_action = job.payload.get("decision", {}).get("selected_action", "escalate")
+        if selected_action == "answer_enquiry":
+            self._answer_enquiry(ticket, job.payload.get("knowledge_result"))
+        elif selected_action == "inspect_temperature":
             self._handle_temperature(ticket)
-        elif decision.selected_action == "investigate_incident":
+        elif selected_action == "investigate_incident":
             self._investigate_incident(ticket)
         else:
             self._transition(ticket, TicketStatus.ESCALATED)
-            self._event(ticket, "ticket.escalated", decision.rationale, key="UNSUPPORTED")
+            rationale = job.payload.get("decision", {}).get("rationale", "No eligible autonomous action was found.")
+            self._event(ticket, "ticket.escalated", rationale, key="UNSUPPORTED")
 
     def _send_update(self, ticket: Ticket, message: str, *, key: str) -> None:
         result = self.notifications.send(ticket, message, "requester", f"MSG-{ticket.ticket_id}-{key}")
@@ -316,7 +373,7 @@ class WorkflowService:
         self._event(
             ticket,
             "work_order.created",
-            f"Created {order.work_order_id} and assigned {order.technician}; expected in {self.technician_delay_seconds:g} demo seconds.",
+            f"Created {order.work_order_id} and assigned {order.technician}; scheduled completion is in {self.technician_delay_seconds:g} seconds.",
             payload=order.model_dump(mode="json"),
             key="WORK-ORDER",
         )
