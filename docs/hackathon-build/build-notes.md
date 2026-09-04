@@ -1,5 +1,13 @@
 # Build Notes
 
+## 2026-09-04 — Configurable technician time and causal sensor lifecycle
+
+- Added a 5–180 second technician-duration control to the request composer. The value crosses `building.events`, is retained in the idempotent `ticket.created` intake event, and determines the durable work-order wake-up; direct and catalog tickets retain the environment default.
+- Replaced fixed alarm snapshots with continuously changing fault telemetry while work is ongoing. Electrical and air-quality scenarios now expose two correlated sensor signals instead of one frozen reading.
+- Restored the earlier incident project's trust boundary in local form: simulated root cause and exact repair remain in a provider-private state record and are not returned through the agent-facing building snapshot or tools before technician completion.
+- Technician completion now returns the simulated field finding, applies the matching repair, writes staged post-repair recovery samples for every affected sensor, adds a maintenance record, and verifies all correlated readings before closure.
+- Added an ongoing work-order countdown to the receptionist ticket view and updated the Request generator lifecycle explanation.
+
 ## 2026-09-04 — Residential tower conversion
 
 - Converted the digital twin into Northstar Residences, a ten-story, 132-apartment tower with apartment floors, penthouses, resident lounges, a gym, yoga studio, indoor pool, café, parcel room, and roof terrace.

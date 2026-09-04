@@ -216,6 +216,7 @@ class SimulationCustomRequest(Model):
     description: str = Field(min_length=3, max_length=2000)
     requester: str = Field(default="Building Resident", min_length=2, max_length=80)
     location_id: str = Field(default="BLDG-A", min_length=2, max_length=80)
+    technician_delay_seconds: float = Field(default=30, ge=5, le=300)
 
 
 class TicketDetail(Model):

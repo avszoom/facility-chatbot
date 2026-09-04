@@ -262,6 +262,7 @@ def test_safety_language_corrects_a_mismatched_console_scenario_and_dispatches(s
         json={
             "request_type": "service_request",
             "condition_type": "temperature_high",
+            "technician_delay_seconds": 75,
             "subject": "Fumes and a bad circuit smell on Floor 4",
             "description": "There are fumes and a bad circuit smell in the Floor 4 laundry room.",
             "requester": "Marcus Lee",
@@ -276,9 +277,19 @@ def test_safety_language_corrects_a_mismatched_console_scenario_and_dispatches(s
     assert scenario["scenario_type"] == "incident"
     assert scenario["condition"]["condition"] == "electrical_overheat"
     assert scenario["condition"]["sensor_id"] == "PWR-04-01"
+    assert scenario["condition"]["sensor_ids"] == ["PWR-04-01", "VOC-04-01"]
+    assert scenario["condition"]["observable_signal_count"] == 2
+    assert scenario["technician_delay_seconds"] == 75
     assert payload["request"]["location_id"] == "BLDG-A-F04-LAUNDRY-ROOM"
     assert scenario["requested_location_id"] == "BLDG-A-F04-APT-4B"
     assert scenario["normalization"]
+    active = system.building.snapshot()["active_conditions"][ticket_id]
+    assert active["affected_sensor_ids"] == ["PWR-04-01", "VOC-04-01"]
+    assert "loose neutral" not in str(system.building.snapshot()).lower()
+    first_fault_value = system.building.telemetry("PWR-04-01")["numeric_value"]
+    system.building.advance_sensors(now=datetime.now(UTC) + timedelta(seconds=5))
+    assert system.building.telemetry("PWR-04-01")["numeric_value"] != first_fault_value
+    assert system.building.telemetry("VOC-04-01")["state"] == "Warning"
 
     for _ in range(3):
         system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=10)
@@ -288,15 +299,22 @@ def test_safety_language_corrects_a_mismatched_console_scenario_and_dispatches(s
     assert detail.ticket.status == "waiting_technician"
     assert detail.work_order and detail.work_order.status == "in_progress"
     assert detail.work_order.asset_id == "PWR-04-01"
+    assert 74 <= (detail.work_order.due_at - detail.work_order.requested_at).total_seconds() <= 76
     assert "laundry" in detail.work_order.procedure.lower()
     assert detail.actions[0].policy_rule == "OPS-DISPATCH-003"
     assert not any(event.event_type == "approval.requested" for event in detail.events)
     evidence = next(event for event in detail.events if event.event_type == "evidence.collected")
     assert "PWR-04-01" in evidence.summary
-    assert "126.4°F" in evidence.summary
+    assert "°F" in evidence.summary
 
     system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=10)
     system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=10)
     completed = system.tickets.detail(ticket_id)
     assert completed.ticket.status == "resolved"
     assert completed.work_order and "loose neutral terminal" in completed.work_order.completion_notes
+    assert system.building.telemetry("PWR-04-01")["state"] == "Normal"
+    assert system.building.telemetry("VOC-04-01")["state"] == "Normal"
+    recovery = system.building.history("VOC-04-01")[-3:]
+    assert [sample["phase"] for sample in recovery] == ["recovering", "recovering", "recovered"]
+    completed_event = next(event for event in completed.events if event.event_type == "work_order.completed")
+    assert completed_event.payload["repair"]["signals_recovered"] is True

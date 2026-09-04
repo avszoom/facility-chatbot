@@ -164,6 +164,7 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
             ),
             request_type=request.request_type,
             condition_type=request.condition_type,
+            technician_delay_seconds=request.technician_delay_seconds,
         )
 
     @api.get("/api/tickets", response_model=list[Ticket])

@@ -558,7 +558,8 @@ class WorkflowService:
     def _dispatch_incident(self, ticket: Ticket) -> None:
         if ticket.status != TicketStatus.WORKING:
             return
-        due = datetime.now(UTC) + timedelta(seconds=self.technician_delay_seconds)
+        technician_delay = self._technician_delay_for_ticket(ticket)
+        due = datetime.now(UTC) + timedelta(seconds=technician_delay)
         action = self.repository.get_action(f"ACT-{ticket.ticket_id}-DISPATCH")
         requested = action.requested if action else {}
         order = self.work_orders.create(
@@ -577,7 +578,7 @@ class WorkflowService:
         self._event(
             ticket,
             "work_order.created",
-            f"Created {order.work_order_id} and assigned {order.technician}; scheduled completion is in {self.technician_delay_seconds:g} seconds.",
+            f"Created {order.work_order_id} and assigned {order.technician}; scheduled completion is in {technician_delay:g} seconds.",
             payload=order.model_dump(mode="json"),
             key="WORK-ORDER",
         )
@@ -599,32 +600,38 @@ class WorkflowService:
             )
         )
 
+    def _technician_delay_for_ticket(self, ticket: Ticket) -> float:
+        created = next(
+            (
+                event
+                for event in self.repository.list_events(ticket.ticket_id)
+                if event.event_type == "ticket.created"
+            ),
+            None,
+        )
+        configured = (
+            created.payload.get("intake", {}).get("technician_delay_seconds")
+            if created
+            else None
+        )
+        try:
+            return min(300.0, max(0.0, float(configured)))
+        except (TypeError, ValueError):
+            return self.technician_delay_seconds
+
     def _complete_technician(self, ticket: Ticket) -> None:
         if ticket.status != TicketStatus.WAITING_TECHNICIAN:
             return
         existing_order = self.repository.get_work_order_for_ticket(ticket.ticket_id)
-        trade_label = existing_order.trade.replace("_", " ") if existing_order else "facilities"
-        text = f"{ticket.subject} {ticket.description}".lower()
-        if existing_order and existing_order.trade == "electrical" and "laund" in text:
-            completion_notes = (
-                "Found a loose neutral terminal at laundry receptacle L4-LR-02 causing localized arcing and insulation odor. "
-                "Isolated the branch circuit, replaced the heat-damaged receptacle, torqued the terminal to specification, "
-                "and documented a stable post-repair thermal scan."
-            )
-        elif existing_order and existing_order.trade == "electrical":
-            completion_notes = (
-                "Found a heat-damaged feeder connection at the affected distribution point, replaced and torqued the connection, "
-                "and documented stable current and thermal readings."
-            )
-        elif existing_order and existing_order.trade == "indoor_air_quality":
-            completion_notes = (
-                "Located the odor source at the affected exhaust path, removed the obstruction, restored ventilation, "
-                "and documented stable VOC clearance readings."
-            )
-        else:
-            completion_notes = f"Inspected the affected zone, corrected the {trade_label} condition, and documented stable clearance readings."
+        if not existing_order:
+            raise RuntimeError(f"No work order exists for {ticket.ticket_id}")
+        repair = self.building.complete_incident_repair(existing_order.asset_id, ticket.ticket_id)
+        completion_notes = str(
+            repair.get("completion_notes")
+            or repair.get("repair_performed")
+            or "The technician repaired the affected component and documented stable clearance readings."
+        )
         order = self.work_orders.complete(ticket.ticket_id, completion_notes)
-        repair = self.building.complete_incident_repair(order.asset_id)
         self._event(
             ticket,
             "work_order.completed",

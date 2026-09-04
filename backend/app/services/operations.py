@@ -44,6 +44,7 @@ class OperationsMessageService:
                 self.tickets.create(
                     TicketCreate.model_validate(payload["request"]),
                     ticket_id=str(payload["ticket_id"]),
+                    intake_metadata=dict(payload.get("scenario") or {}),
                 )
                 self.message_bus.acknowledge(delivery)
                 processed += 1

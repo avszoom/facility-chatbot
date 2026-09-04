@@ -8,11 +8,11 @@ The domain models, state machine, policy rules, action gateway, ticket service, 
 | Agent reasoning | Strands + OpenAI Responses API in the Operations worker (`OpenAIStrandsRuntime`) | The same Strands agent in Bedrock AgentCore Runtime with a Bedrock model adapter | `AgentRuntime.decide → AgentDecision` |
 | Durable tickets/audit | SQLite WAL tables | DynamoDB single table + conditional writes | `OperationsRepository` |
 | Cross-service pub/sub | SQLite message and subscription-delivery tables with at-least-once delivery | EventBridge custom bus or SNS topics fan-out to SQS subscriptions | `MessageBusPort` + stable message envelope |
-| Delayed/resumable jobs | Transactional SQLite workflow outbox + configurable subscriber worker pool | EventBridge Scheduler → EventBridge/SQS/Lambda | `WorkflowJob` + `WorkflowService` |
+| Delayed/resumable jobs | Transactional SQLite workflow outbox + per-request technician duration + configurable subscriber worker pool | EventBridge Scheduler → EventBridge/SQS/Lambda | `WorkflowJob` + `WorkflowService` |
 | Retry and dead letters | Leased delivery, exponential retry, terminal `dead_letter` state | SQS visibility timeout, redrive policy, and DLQ | delivery attempts + correlation/idempotency keys |
 | Workflow checkpoints | Versioned `workflow_states` record for every ticket | DynamoDB workflow-state item with conditional version updates | `WorkflowState` |
 | Knowledge | Versioned local JSON | S3 + OpenSearch or Bedrock Knowledge Bases | `KnowledgePort.search` |
-| Telemetry and commands | 60-sensor live twin, rolling history, anomaly injection, and safe commands | IoT SiteWise/TwinMaker + IoT Core rules and command adapter | `BuildingPort` |
+| Telemetry and commands | 60-sensor live twin, correlated anomaly signals, rolling fault/recovery history, private simulator truth, and safe commands | IoT SiteWise/TwinMaker + IoT Core rules and command adapter; isolate synthetic ground truth in a simulator-only DynamoDB table | `BuildingPort` |
 | Work orders | Local CMMS simulator | AgentCore Gateway or direct CMMS API | `WorkOrderPort` |
 | Resident updates | Ticket timeline event | SNS/SES/Amazon Connect | `NotificationPort` |
 | Agent-live aggregation | `/api/operations/live` over durable ticket/event state | DynamoDB streams/materialized metrics + API Gateway | live-operations response schema |

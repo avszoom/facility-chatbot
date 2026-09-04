@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 from backend.app.domain.models import (
@@ -39,7 +40,13 @@ class TicketService:
         if self.repository.append_event(event):
             self.events.publish({"type": "ticket.updated", "ticket_id": event.ticket_id})
 
-    def create(self, request: TicketCreate, *, ticket_id: str | None = None) -> Ticket:
+    def create(
+        self,
+        request: TicketCreate,
+        *,
+        ticket_id: str | None = None,
+        intake_metadata: dict[str, Any] | None = None,
+    ) -> Ticket:
         if ticket_id:
             existing = self.repository.get_ticket(ticket_id)
             if existing:
@@ -85,7 +92,11 @@ class TicketService:
                 actor=request.requester,
                 event_type="ticket.created",
                 summary=request.description,
-                payload={"subject": request.subject, "location_id": request.location_id},
+                payload={
+                    "subject": request.subject,
+                    "location_id": request.location_id,
+                    "intake": intake_metadata or {},
+                },
                 correlation_id=f"CORR-{ticket.ticket_id}",
                 created_at=now,
             )

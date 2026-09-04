@@ -66,6 +66,9 @@ export interface WorkOrder {
   technician: string;
   status: string;
   procedure: string;
+  requested_at: string;
+  due_at: string;
+  completed_at: string | null;
   completion_notes: string | null;
 }
 
@@ -225,6 +228,7 @@ export interface CustomRequestInput {
   description: string;
   requester: string;
   location_id: string;
+  technician_delay_seconds: number;
 }
 
 export interface PublishedRequest {
@@ -233,7 +237,7 @@ export interface PublishedRequest {
   correlation_id: string;
   payload: {
     ticket_id: string;
-    request: Omit<CustomRequestInput, "request_type" | "condition_type"> & { kind: RequestType };
+    request: Omit<CustomRequestInput, "request_type" | "condition_type" | "technician_delay_seconds"> & { kind: RequestType };
     scenario: {
       type: string;
       scenario_type: RequestType;
@@ -241,12 +245,15 @@ export interface PublishedRequest {
       condition: {
         condition: CustomRequestInput["condition_type"];
         sensor_id: string | null;
+        sensor_ids?: string[];
+        observable_signal_count?: number;
         location_id: string;
         updated_at: string;
       };
       requested_scenario_type?: RequestType;
       requested_condition_type?: CustomRequestInput["condition_type"];
       requested_location_id?: string;
+      technician_delay_seconds?: number;
       normalization?: string | null;
     };
   };

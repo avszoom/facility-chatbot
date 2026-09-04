@@ -54,7 +54,18 @@ continuously updated impact totals.
 The compact **Request generator** tab controls the Building World without bypassing
 the production-shaped path. Compose a location-specific request or deliberately
 publish 1–20 enquiry, service-request, or incident scenarios for a concurrency test.
-Every request is still published to `building.events` and consumed by Operations.
+For operational requests, set an accelerated technician work duration from 5–180
+seconds. The selected duration travels inside the durable event and becomes the
+work-order wake-up time; it is not a browser-only countdown. Every request is still
+published to `building.events` and consumed by Operations.
+
+Incident conditions behave as a small physical simulation rather than a status flag.
+The Building World injects a private root cause, exposes only correlated observable
+signals (for example cabinet temperature plus VOC), and continues producing changing
+abnormal readings while work is underway. On technician completion, the private
+finding becomes a field report, the affected readings record a staged 15-minute
+simulated recovery, and Operations performs an independent multi-sensor verification.
+The agent-facing `BuildingPort` never exposes the private cause before field work.
 
 For every operational ticket, the model chooses among six live sensors at the
 reported floor, reads the relevant rolling histories, and can search maintenance
@@ -69,8 +80,8 @@ assign a qualified technician work order without approval when no shared-system
 change or service interruption is proposed. Work on shared distribution equipment,
 safety-critical controls, or disruptive infrastructure still requires a human
 decision. The ticket remains visibly ongoing while the technician works, records
-the diagnosed cause and repair, and closes only after fresh telemetry verifies the
-outcome.
+the configured completion time, diagnosed cause and repair, and closes only after
+fresh correlated telemetry verifies the outcome.
 
 To run each service boundary in its own terminal instead:
 

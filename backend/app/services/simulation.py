@@ -215,6 +215,7 @@ class BuildingSimulationService:
         *,
         request_type: str,
         condition_type: str = "normal",
+        technician_delay_seconds: float = 30,
         now: datetime | None = None,
     ) -> PubSubMessage:
         """Publish a receptionist-authored request through the building event boundary."""
@@ -301,6 +302,7 @@ class BuildingSimulationService:
                     "requested_scenario_type": requested_type,
                     "requested_condition_type": requested_condition,
                     "requested_location_id": requested_location,
+                    "technician_delay_seconds": technician_delay_seconds,
                     "normalization": " ".join(normalization_notes) or None,
                 },
             },

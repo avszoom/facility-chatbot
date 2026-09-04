@@ -22,7 +22,7 @@ FLOORS: tuple[dict[str, Any], ...] = (
     {"number": 10, "name": "Penthouses & Sky Lounge", "occupancy": 28, "capacity": 44},
 )
 
-BUILDING_SCHEMA_VERSION = 2
+BUILDING_SCHEMA_VERSION = 3
 
 
 def _sensor(
@@ -203,6 +203,7 @@ class LocalBuildingProvider:
     """Simulated BMS port. AWS can replace this with IoT SiteWise/TwinMaker adapters."""
 
     STATE_KEY = "building"
+    TRUTH_KEY_PREFIX = "building_private_truth:"
 
     def __init__(self, repository: OperationsRepository):
         self.repository = repository
@@ -327,7 +328,40 @@ class LocalBuildingProvider:
         if last and (current - last).total_seconds() < 2:
             return self.snapshot()["health"]
         sequence = int(state.get("heartbeat_sequence", 0)) + 1
-        active_ids = {condition["sensor_id"] for condition in state["active_conditions"].values()}
+        active_conditions = [
+            condition
+            for condition in state["active_conditions"].values()
+            if condition.get("phase", "active") == "active"
+        ]
+        active_ids = {
+            sensor_id
+            for condition in active_conditions
+            for sensor_id in condition.get("affected_sensor_ids", [condition["sensor_id"]])
+        }
+        for condition_index, condition in enumerate(active_conditions):
+            for sensor_index, sensor_id in enumerate(condition.get("affected_sensor_ids", [condition["sensor_id"]])):
+                sensor = state["sensors"].get(sensor_id)
+                if not sensor:
+                    continue
+                target = float(condition.get("fault_values", {}).get(sensor_id, sensor.get("numeric_value", 0)))
+                pulse = ((sequence + condition_index + sensor_index) % 5) - 2
+                scale = max(0.2, abs(target) * 0.004)
+                sensor["numeric_value"] = round(max(0, target + pulse * scale), 1)
+                sensor["value"] = self._format_sensor_value(sensor)
+                sensor["seen"] = "Live"
+                sensor["updated_at"] = current.isoformat()
+                state["sensor_overrides"][sensor_id] = deepcopy(sensor)
+                history = state["sensor_history"].setdefault(sensor_id, [])
+                history.append(
+                    {
+                        "recorded_at": current.isoformat(),
+                        "numeric_value": sensor["numeric_value"],
+                        "value": sensor["value"],
+                        "state": sensor["state"],
+                        "phase": "fault_active",
+                    }
+                )
+                del history[:-24]
         for sensor_id, sensor in state["sensors"].items():
             if sensor_id in active_ids or sensor.get("state") != "Normal":
                 continue
@@ -417,8 +451,17 @@ class LocalBuildingProvider:
                 }
             )
             state["sensors"][asset_id] = sensor
-            if asset_id in state["sensor_overrides"]:
-                state["sensor_overrides"][asset_id] = deepcopy(sensor)
+            state["sensor_overrides"].pop(asset_id, None)
+            condition = next(
+                (
+                    item
+                    for item in state["active_conditions"].values()
+                    if asset_id in item.get("affected_sensor_ids", [item.get("sensor_id")])
+                ),
+                None,
+            )
+            if condition:
+                condition.update({"phase": "repaired", "repaired_at": datetime.now(UTC).isoformat()})
             state["sensor_history"].setdefault(asset_id, []).append(
                 {
                     "recorded_at": datetime.now(UTC).isoformat(),
@@ -442,43 +485,99 @@ class LocalBuildingProvider:
         self.repository.set_state(self.STATE_KEY, state)
         return {"before": before, "after": deepcopy(asset), "command": "set_temperature_setpoint"}
 
-    def complete_incident_repair(self, asset_id: str) -> dict[str, Any]:
+    def complete_incident_repair(
+        self,
+        asset_id: str,
+        ticket_id: str | None = None,
+    ) -> dict[str, Any]:
         state = self._state()
-        asset = state["assets"].get(asset_id)
-        sensor = state["sensors"].get(asset_id)
-        if sensor and sensor.get("type") in {
-            "VOC / odor",
-            "CO₂",
-            "Humidity",
-            "Electrical load",
-            "Cabinet temperature",
-        }:
-            before = deepcopy(sensor)
-            if sensor.get("type") == "VOC / odor":
-                sensor.update({"value": "18 ppb", "voc_ppb": 18.0, "numeric_value": 18.0})
-            elif sensor.get("type") == "Cabinet temperature":
-                sensor.update({"value": "84.2°F", "cabinet_temperature_f": 84.2, "current_amps": 30.4, "numeric_value": 84.2})
-            sensor.update({"state": "Normal", "status": "operational", "seen": "Live"})
-            state["sensors"][asset_id] = sensor
-            if asset_id in state["sensor_overrides"]:
-                state["sensor_overrides"][asset_id] = deepcopy(sensor)
-            if asset:
-                asset.update({"cabinet_temperature_f": 84.2, "current_amps": 30.4, "status": "operational"})
-                asset.pop("fault", None)
-            state["updated_at"] = datetime.now(UTC).isoformat()
-            self.repository.set_state(self.STATE_KEY, state)
-            return {"before": before, "after": deepcopy(sensor), "repair": "affected zone inspected and restored"}
-        if not asset:
-            raise KeyError(f"Unknown asset {asset_id}")
-        before = deepcopy(asset)
-        asset.update({"cabinet_temperature_f": 84.2, "current_amps": 30.4, "status": "operational"})
-        asset.pop("fault", None)
-        state["history"].setdefault(asset_id, []).append(
-            {"minutes_ago": 0, "cabinet_temperature_f": 84.2, "current_amps": 30.4}
+        condition = state["active_conditions"].get(ticket_id) if ticket_id else None
+        if condition and asset_id not in condition.get("affected_sensor_ids", [condition.get("sensor_id")]):
+            condition = None
+        condition = condition or next(
+            (
+                item
+                for item in state["active_conditions"].values()
+                if item.get("phase", "active") == "active"
+                and asset_id in item.get("affected_sensor_ids", [item.get("sensor_id")])
+            ),
+            None,
         )
-        state["updated_at"] = datetime.now(UTC).isoformat()
+        asset = state["assets"].get(asset_id)
+        if not condition and not asset:
+            raise KeyError(f"Unknown asset {asset_id}")
+        current = datetime.now(UTC)
+        before: dict[str, Any] = {}
+        after: dict[str, Any] = {}
+        recovery_samples: dict[str, list[dict[str, Any]]] = {}
+        if condition:
+            for sensor_id in condition.get("affected_sensor_ids", [condition["sensor_id"]]):
+                sensor = state["sensors"].get(sensor_id)
+                baseline = condition.get("baselines", {}).get(sensor_id) or DEFAULT_BUILDING["sensors"].get(sensor_id)
+                if not sensor or not baseline:
+                    continue
+                before[sensor_id] = deepcopy(sensor)
+                start_value = float(sensor.get("numeric_value", 0))
+                end_value = float(baseline.get("numeric_value", 0))
+                samples: list[dict[str, Any]] = []
+                for step, fraction in enumerate((0.45, 0.15, 0.0), start=1):
+                    sample_sensor = {**sensor, "numeric_value": round(end_value + (start_value - end_value) * fraction, 1)}
+                    sample_sensor["value"] = self._format_sensor_value(sample_sensor)
+                    sample = {
+                        "recorded_at": current.isoformat(),
+                        "simulated_minutes_after_repair": step * 5,
+                        "numeric_value": sample_sensor["numeric_value"],
+                        "value": sample_sensor["value"],
+                        "state": "Warning" if step < 3 else "Normal",
+                        "phase": "recovering" if step < 3 else "recovered",
+                    }
+                    state["sensor_history"].setdefault(sensor_id, []).append(sample)
+                    samples.append(sample)
+                del state["sensor_history"][sensor_id][:-24]
+                restored = deepcopy(baseline)
+                restored.update({"state": "Normal", "status": "operational", "seen": "Live", "updated_at": current.isoformat()})
+                state["sensors"][sensor_id] = restored
+                state["sensor_overrides"].pop(sensor_id, None)
+                after[sensor_id] = deepcopy(restored)
+                recovery_samples[sensor_id] = samples
+            condition.update({"phase": "repaired", "repaired_at": current.isoformat()})
+        if asset:
+            before.setdefault(asset_id, deepcopy(asset))
+            asset.update({"cabinet_temperature_f": 84.2, "current_amps": 30.4, "status": "operational"})
+            asset.pop("fault", None)
+            after.setdefault(asset_id, deepcopy(asset))
+        if condition and condition.get("condition") == "electrical_overheat" and self._floor_number(condition["location_id"]) == 7:
+            panel = state["assets"]["ELEC-PNL-7A"]
+            panel.update({"cabinet_temperature_f": 84.2, "current_amps": 30.4, "status": "operational"})
+            panel.pop("fault", None)
+        resolved_ticket_id = str(condition.get("ticket_id")) if condition else ""
+        truth = self.repository.get_state(f"{self.TRUTH_KEY_PREFIX}{resolved_ticket_id}") or {}
+        finding = str(truth.get("inspection_findings") or "The technician isolated the failing local component during field inspection.")
+        repair = str(truth.get("repair_performed") or "The affected component was repaired and returned to service.")
+        state["maintenance_history"].append(
+            {
+                "date": current.date().isoformat(),
+                "floor": self._floor_number(str(condition.get("location_id", "BLDG-A"))) if condition else 1,
+                "asset_type": state["sensors"].get(asset_id, {}).get("type", "Building system"),
+                "asset_id": asset_id,
+                "summary": finding,
+                "outcome": repair,
+            }
+        )
+        state["updated_at"] = current.isoformat()
         self.repository.set_state(self.STATE_KEY, state)
-        return {"before": before, "after": deepcopy(asset), "repair": "feeder connection replaced and torqued"}
+        return {
+            "before": before,
+            "after": after,
+            "inspection_findings": finding,
+            "failed_component": truth.get("failed_component"),
+            "repair": repair,
+            "repair_performed": repair,
+            "completion_notes": f"{finding} {repair}",
+            "affected_sensor_ids": list(condition.get("affected_sensor_ids", [])) if condition else [asset_id],
+            "recovery_samples": recovery_samples,
+            "signals_recovered": bool(after),
+        }
 
     def verify(self, ticket: Ticket) -> dict[str, Any]:
         if self.repository.get_state(f"verification_failure:{ticket.ticket_id}"):
@@ -489,12 +588,18 @@ class LocalBuildingProvider:
             }
         active_condition = self.condition_for_ticket(ticket.ticket_id)
         if active_condition:
-            sensor = active_condition["sensor"]
-            passed = sensor.get("state") == "Normal"
+            state = self._state()
+            sensor_ids = active_condition.get("affected_sensor_ids", [active_condition["sensor_id"]])
+            sensors = [state["sensors"].get(sensor_id, {}) for sensor_id in sensor_ids]
+            passed = bool(sensors) and all(sensor.get("state") == "Normal" for sensor in sensors)
             return {
                 "passed": passed,
-                "summary": f"{sensor.get('type', 'Sensor')} at {sensor.get('area', ticket.location_id)} is {sensor.get('value', 'stable')} and reporting {sensor.get('state', 'Normal').lower()}.",
-                "readings": sensor,
+                "summary": (
+                    f"{len(sensors)} correlated sensor{'s' if len(sensors) != 1 else ''} stayed normal across the simulated 15-minute post-repair window."
+                    if passed
+                    else "One or more correlated readings remain outside the stable range."
+                ),
+                "readings": sensors,
             }
         actions = self.repository.list_actions(ticket.ticket_id)
         requested_asset_id = next(
@@ -618,19 +723,105 @@ class LocalBuildingProvider:
                 "current_amps": 58.1,
                 "location_id": location_id,
             }
-        if sensor:
-            state["sensor_overrides"][sensor["id"]] = sensor
-            state["sensors"][sensor["id"]] = deepcopy(sensor)
-            state["sensor_history"].setdefault(sensor["id"], []).append(
-                {"recorded_at": datetime.now(UTC).isoformat(), "numeric_value": sensor.get("numeric_value", sensor.get("temperature_f", sensor.get("voc_ppb", sensor.get("cabinet_temperature_f", 0)))), "value": sensor["value"], "state": sensor["state"]}
+        affected_sensors: list[dict[str, Any]] = [sensor] if sensor else []
+        if sensor and normalized in {"air_quality", "smoke_or_odor"}:
+            co2_id = f"AIR-{floor:02d}-01"
+            co2 = deepcopy(state["sensors"][co2_id])
+            co2.update(
+                {
+                    "area": area,
+                    "location_id": location_id,
+                    "numeric_value": 1280.0 if normalized == "air_quality" else 1085.0,
+                    "value": "1,280 ppm" if normalized == "air_quality" else "1,085 ppm",
+                    "state": "Warning",
+                    "status": "fault",
+                    "seen": "Live",
+                }
             )
+            affected_sensors.append(co2)
+        elif sensor and normalized == "electrical_overheat":
+            voc_id = f"VOC-{floor:02d}-01"
+            voc = deepcopy(state["sensors"][voc_id])
+            voc.update(
+                {
+                    "area": area,
+                    "location_id": location_id,
+                    "numeric_value": 118.0,
+                    "value": "118 ppb",
+                    "state": "Warning",
+                    "status": "fault",
+                    "seen": "Live",
+                    "voc_ppb": 118.0,
+                }
+            )
+            affected_sensors.append(voc)
+        if affected_sensors:
+            current = datetime.now(UTC)
+            baselines = {
+                item["id"]: deepcopy(state["sensors"].get(item["id"]) or DEFAULT_BUILDING["sensors"].get(item["id"]))
+                for item in affected_sensors
+            }
+            for item in affected_sensors:
+                item["updated_at"] = current.isoformat()
+                state["sensor_overrides"][item["id"]] = deepcopy(item)
+                state["sensors"][item["id"]] = deepcopy(item)
+                state["sensor_history"].setdefault(item["id"], []).append(
+                    {
+                        "recorded_at": current.isoformat(),
+                        "numeric_value": item.get("numeric_value", 0),
+                        "value": item["value"],
+                        "state": item["state"],
+                        "phase": "fault_injected",
+                    }
+                )
             if ticket_id:
+                sensor_ids = [item["id"] for item in affected_sensors]
                 state["active_conditions"][ticket_id] = {
                     "ticket_id": ticket_id,
                     "sensor_id": sensor["id"],
+                    "affected_sensor_ids": sensor_ids,
+                    "fault_values": {item["id"]: item.get("numeric_value", 0) for item in affected_sensors},
+                    "baselines": baselines,
                     "condition": normalized,
                     "location_id": location_id,
+                    "phase": "active",
+                    "activated_at": current.isoformat(),
                 }
+                location_label = f"Floor {floor} {area}"
+                if normalized == "electrical_overheat" and "laund" in location_id.lower():
+                    truth = {
+                        "failed_component": "laundry receptacle L4-LR-02 neutral terminal",
+                        "inspection_findings": "Found a loose neutral terminal at laundry receptacle L4-LR-02 causing localized arcing and insulation odor.",
+                        "repair_performed": "Isolated the branch circuit, replaced the heat-damaged receptacle, torqued the terminal to specification, and confirmed a stable thermal scan.",
+                    }
+                elif normalized == "electrical_overheat":
+                    truth = {
+                        "failed_component": f"{location_label} branch connection",
+                        "inspection_findings": f"Found heat damage and a loose termination at the {location_label} branch connection.",
+                        "repair_performed": "Isolated the circuit, replaced and torqued the damaged connection, and confirmed stable current and thermal readings.",
+                    }
+                elif normalized in {"air_quality", "smoke_or_odor"}:
+                    truth = {
+                        "failed_component": f"{location_label} exhaust path",
+                        "inspection_findings": f"Found restricted airflow and a localized odor source at the {location_label} exhaust path.",
+                        "repair_performed": "Removed the obstruction, restored exhaust airflow, and confirmed stable VOC and CO₂ clearance readings.",
+                    }
+                else:
+                    truth = {
+                        "failed_component": f"{location_label} fan-coil control",
+                        "inspection_findings": f"Confirmed the reported comfort drift at the {location_label} fan-coil zone.",
+                        "repair_performed": "Restored the approved control setting and confirmed the zone returned to its comfort range.",
+                    }
+                self.repository.set_state(
+                    f"{self.TRUTH_KEY_PREFIX}{ticket_id}",
+                    {
+                        **truth,
+                        "ticket_id": ticket_id,
+                        "condition": normalized,
+                        "location_id": location_id,
+                        "affected_sensor_ids": sensor_ids,
+                    },
+                )
         if normalized == "temperature_high" and floor == 4:
             asset = state["assets"]["AHU-ZONE-4B"]
             asset.update({"temperature_f": 77.2, "setpoint_f": 72.0, "status": "operational"})
@@ -655,6 +846,8 @@ class LocalBuildingProvider:
         return {
             "condition": normalized,
             "sensor_id": sensor["id"] if sensor else None,
+            "sensor_ids": [item["id"] for item in affected_sensors],
+            "observable_signal_count": len(affected_sensors),
             "location_id": location_id,
             "updated_at": state["updated_at"],
         }
