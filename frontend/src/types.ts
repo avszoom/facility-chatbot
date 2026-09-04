@@ -190,6 +190,8 @@ export interface LiveOperations {
     provider: string;
     model: string;
     real_model: boolean;
+    coordinator_role: string;
+    specialist_roles: string[];
     worker_count: number;
     active_executions: number;
     queued_tasks: number;

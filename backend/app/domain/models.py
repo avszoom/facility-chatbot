@@ -161,6 +161,18 @@ class WorkOrder(Model):
     completion_notes: str | None = None
 
 
+class SpecialistReport(Model):
+    role: str
+    objective: str
+    summary: str
+    findings: list[str] = Field(default_factory=list)
+    evidence_sensor_ids: list[str] = Field(default_factory=list)
+    confidence: float = Field(default=0.0, ge=0, le=1)
+    tool_calls: list[str] = Field(default_factory=list)
+    model_provider: str | None = None
+    model_id: str | None = None
+
+
 class AgentDecision(Model):
     kind: TicketKind
     priority: TicketPriority
@@ -178,6 +190,7 @@ class AgentDecision(Model):
     evidence_sensor_ids: list[str] = Field(default_factory=list)
     diagnosis: str = ""
     tool_calls: list[str] = Field(default_factory=list)
+    specialist_reports: list[SpecialistReport] = Field(default_factory=list)
     model_provider: str | None = None
     model_id: str | None = None
 

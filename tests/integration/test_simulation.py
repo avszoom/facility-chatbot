@@ -42,6 +42,8 @@ def test_live_operations_reports_both_engines_and_impact(system):
     assert payload["simulation"]["running"] is False
     assert payload["agent"]["status"] == "online"
     assert payload["agent"]["worker_count"] == 3
+    assert payload["agent"]["coordinator_role"] == "Operations Coordinator"
+    assert "Sensor Intelligence Agent" in payload["agent"]["specialist_roles"]
     assert payload["agent"]["active_tickets"][0]["ticket_id"] == created.json()["payload"]["ticket_id"]
     assert payload["messaging"]["delivery"] == "at_least_once"
     assert payload["messaging"]["idempotent_consumers"] is True

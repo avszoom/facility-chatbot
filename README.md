@@ -25,10 +25,15 @@ OPENAI_STORE=false
 ```
 
 The key is read only by the Operations service and is never returned by an API,
-written to an event, or bundled into the browser. The Strands agent uses OpenAI's
-Responses API, while the ticket state machine and policy gateway remain provider
-independent. `AGENT_RUNTIME=bedrock` plus AWS credentials selects the AWS model path.
-The Agent activity page identifies the active runtime, provider, and model.
+written to an event, or bundled into the browser. Each ticket invokes a bounded
+specialist team through Strands: Intake & Safety, Building Context, Sensor
+Intelligence, Maintenance Intelligence, and (when relevant) Resident Knowledge.
+Relevant specialists execute concurrently and provide typed evidence reports to an
+Operations Coordinator agent. The coordinator proposes one action; the deterministic
+state machine and policy gateway alone authorize and execute it. The Strands agents
+use OpenAI's Responses API locally, while `AGENT_RUNTIME=bedrock` plus AWS credentials
+selects the AWS model path. Agent Activity shows the roster, runtime, provider, model,
+and one public completion event for every specialist report.
 
 `make run` starts three independently replaceable service groups: **Operations**
 (API plus three durable workers), **Building World**, and **Web UI**.
@@ -67,13 +72,14 @@ finding becomes a field report, the affected readings record a staged 15-minute
 simulated recovery, and Operations performs an independent multi-sensor verification.
 The agent-facing `BuildingPort` never exposes the private cause before field work.
 
-For every operational ticket, the model chooses among six live sensors at the
-reported floor, reads the relevant rolling histories, and can search maintenance
-records and the building knowledge base. Its typed decision must cite exact sensor
-IDs; unknown or cross-floor IDs are rejected. Public `agent.tools_completed` and
-`evidence.correlated` events show what evidence was used without exposing private
-chain-of-thought. A sensor-only ticket follows the same durable workflow as a
-resident report.
+For every operational ticket, the Building Context agent resolves the floor and
+available devices, the Sensor Intelligence agent compares live values and rolling
+trends, and the Maintenance Intelligence agent reviews related service history. The
+coordinator's typed decision must cite exact sensor IDs supplied by those specialists;
+unknown or cross-floor IDs are rejected. Public `specialist.completed`,
+`agent.tools_completed`, and `evidence.correlated` events show which roles and evidence
+were used without exposing private chain-of-thought. A sensor-only ticket follows the
+same durable workflow as a resident report.
 
 Localized incident inspection is automated end to end: the agent may create and
 assign a qualified technician work order without approval when no shared-system
@@ -96,8 +102,9 @@ make run-world
 make run-ui
 ```
 
-Set `AGENT_WORKER_COUNT` to control how many independent ticket steps can execute
-concurrently. The local default is `3`. Reliability controls are
+Set `AGENT_WORKER_COUNT` to control how many independent ticket workflows can execute
+concurrently. The local default is `3`; this worker count is separate from the
+specialist agents collaborating inside each workflow. Reliability controls are
 `MESSAGE_MAX_ATTEMPTS`, `MESSAGE_RETRY_BASE_SECONDS`, and `MESSAGE_LEASE_SECONDS`.
 
 ## Scenario walkthrough

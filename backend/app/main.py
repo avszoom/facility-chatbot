@@ -78,6 +78,8 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
                 "provider": runtime.agent.provider,
                 "model": runtime.agent.model_id,
                 "real_model": runtime.agent.real_model,
+                "coordinator_role": getattr(runtime.agent, "coordinator_role", "Operations Coordinator"),
+                "specialist_roles": list(getattr(runtime.agent, "specialist_roles", [])),
                 "worker_count": runtime.settings.agent_worker_count,
                 "active_executions": messaging["processing"],
                 "queued_tasks": sum(job.status == "pending" for job in jobs)
@@ -100,6 +102,7 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
                     event["event_type"]
                     in {
                         "agent.decision",
+                        "specialist.completed",
                         "agent.tools_completed",
                         "evidence.collected",
                         "message.sent",

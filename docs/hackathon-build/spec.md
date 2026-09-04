@@ -48,8 +48,12 @@ Durable pub/sub topics
   workflow.commands ► operations.workflow subscription
         │ leased at-least-once delivery
         ▼
-Isolated Strands agent execution
-        │ typed decision + tool calls
+Isolated Strands team execution
+  bounded specialists in parallel
+        │ typed evidence reports
+        ▼
+Operations Coordinator
+        │ typed decision
         ▼
 Policy gateway
    ├── knowledge tool
@@ -60,7 +64,7 @@ Policy gateway
    └── verification tool
 ```
 
-The agent never directly edits database records or calls arbitrary code. The worker supplies current ticket context and eligible actions. The policy gateway validates every write even if the model requests it.
+Specialist agents and the coordinator never directly edit database records or call arbitrary code. The worker supplies bounded role-specific context and eligible actions. The policy gateway validates every write even if the coordinator requests it.
 
 ## Domain Model
 
@@ -104,11 +108,15 @@ Only the domain service transitions state. The agent returns a proposed `NextDec
 
 ## Agent Design
 
-### FacilityOps Orchestrator
+### Coordinated specialist team
 
 Implements: `prd.md > Epic 2`, `Epic 3`, `Epic 4`, `Epic 5`
 
-Use one primary Strands agent with a focused system prompt, ticket context, eligible actions, and typed tools. The agent produces `NextDecision` as structured output:
+Use bounded Strands agents for Intake & Safety, Building Context, Sensor Intelligence,
+Maintenance Intelligence, and Resident Knowledge. Invoke only the relevant roles for a
+ticket and run them concurrently. Each specialist has one read-only, role-scoped context
+tool and returns a typed `SpecialistReport`. An Operations Coordinator receives those
+reports and produces `NextDecision` as structured output:
 
 - intent and priority
 - safety flags
@@ -119,12 +127,15 @@ Use one primary Strands agent with a focused system prompt, ticket context, elig
 - user-facing update draft
 - requested wake-up or escalation reason
 
-Do not create a multi-agent swarm for the MVP. If specialist behavior is useful, expose triage, investigation, and response drafting as explicit bounded functions or later Strands agents behind the same interface.
+This is a controlled team, not an open-ended swarm: specialists cannot delegate,
+mutate systems, or select arbitrary tools. The coordinator proposes one eligible
+action; deterministic policy and domain services retain mutation authority.
 
-One agent role definition can have several isolated executions at the same time. Each
-execution is scoped to one ticket/workflow correlation ID, and each worker claims only
-one bounded workflow step. `AGENT_WORKER_COUNT` limits local concurrency. Waiting for a
-person, technician, or verification window persists state and releases the worker.
+Every role can have several isolated executions at the same time. Each team execution
+is scoped to one ticket/workflow correlation ID, and each worker claims only one bounded
+workflow step. `AGENT_WORKER_COUNT` limits ticket concurrency; it does not limit the
+specialists executing inside a claimed workflow. Waiting for a person, technician, or
+verification window persists state and releases the worker.
 
 Every message has a stable message ID, correlation ID, and idempotency key. Consumers
 acknowledge only after the bounded workflow step succeeds. Failures use exponential
@@ -254,8 +265,8 @@ deploy/
 
 1. Building World publishes `building.request.detected` to `building.events`; the Operations intake subscription creates the ticket idempotently. Direct receptionist intake enters through the same ticket service.
 2. Ticket changes and the next deterministic job are persisted together. A relay publishes due outbox jobs to `workflow.commands` with an idempotency key.
-3. A worker leases one `operations.workflow` delivery, loads the current ticket version, computes eligible actions, and invokes the Strands agent.
-4. The structured decision is validated. Reads execute immediately; writes pass through policy and idempotency checks.
+3. A worker leases one `operations.workflow` delivery, loads the current ticket version, computes eligible actions, and concurrently invokes the relevant bounded Strands specialists.
+4. The Operations Coordinator synthesizes typed specialist reports into one structured decision. Evidence references are validated; writes pass through policy and idempotency checks.
 5. On success the consumer saves a versioned workflow checkpoint and acknowledges the message. On failure it retries with backoff; exhaustion dead-letters and safely escalates the ticket.
 6. SSE announces the update; the browser refetches canonical state.
 7. Waiting tickets have no open model invocation or web request. A persisted future outbox job resumes them.
@@ -285,7 +296,7 @@ same ticket without duplicate actions.
 
 ### Agent execution
 
-Package the same Strands agent behind the AgentCore Runtime HTTP contract and deploy it with the AgentCore CLI. Keep ticket state outside model sessions.
+Package the same bounded Strands specialist/coordinator topology behind the AgentCore Runtime HTTP contract and deploy it with the AgentCore CLI. Keep ticket state outside model sessions.
 
 ### Persistence and scheduling
 
@@ -364,13 +375,13 @@ Restart the local worker or use the accelerated technician control. The ticket r
 - **Technological Implementation:** real Strands structured output, typed tools, hooks, durable state, idempotent writes, restart recovery, AgentCore deployment, and visible traces.
 - **Design:** coherent ticket-first product, calm professional hierarchy, understandable action/approval cards, and honest failure states.
 - **Potential Impact:** quantify deflection, human touches saved, first-response time, SLA risk, and verified closures for facility teams.
-- **Creativity & Originality:** one agent handles informational, transactional, and physical-world workflows while separating safe automation from human judgment.
+- **Creativity & Originality:** a bounded specialist team unifies informational, transactional, and physical-world workflows while separating read-only intelligence, coordinated decisions, safe automation, and human judgment.
 - **Presentation:** one reproducible three-ticket story with a visible queue transformation and a single memorable durable-wait moment.
 
 ## Risks And Verification
 
 1. **Looks like the prior project.** Use a new name, ticket-first UI, new Strands code, new state model, new demo, and a precise reuse disclosure.
-2. **Too broad.** Keep exactly three ticket paths and one safe command. Cut offers, real integrations, and multi-agent expansion.
+2. **Too broad.** Keep exactly three ticket paths, one safe command, and five fixed specialist roles. Cut offers, real integrations, and open-ended agent delegation.
 3. **Agent appears decorative.** Show real Strands decisions and tool calls that change external state; do not pre-script the live model path.
 4. **Model variability breaks the demo.** Validate structured output, bound actions, seed evidence, add retry/escalation, and rehearse the exact model/configuration.
 5. **AWS consumes the schedule.** Do not begin cloud work until all three local paths and the UI are demo-stable.

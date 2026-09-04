@@ -12,5 +12,7 @@ class AgentRuntime(Protocol):
     provider: str
     model_id: str
     real_model: bool
+    coordinator_role: str
+    specialist_roles: tuple[str, ...]
 
     def decide(self, ticket: Ticket, context: dict[str, Any]) -> AgentDecision: ...

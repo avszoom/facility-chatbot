@@ -41,6 +41,10 @@ def test_new_request_exposes_each_live_agent_phase(system):
         "ticket.created",
         "agent.started",
         "evidence.correlated",
+        "specialist.completed",
+        "specialist.completed",
+        "specialist.completed",
+        "specialist.completed",
         "agent.decision",
         "agent.tools_completed",
         "message.sent",
@@ -74,6 +78,18 @@ def test_general_floor_report_uses_the_relevant_sensor_without_a_scripted_condit
 
     assert detail.ticket.status == TicketStatus.WAITING_TECHNICIAN
     assert decision.payload["evidence_sensor_ids"] == ["VOC-05-01"]
+    assert [report["role"] for report in decision.payload["specialist_reports"]] == [
+        "Intake & Safety Agent",
+        "Building Context Agent",
+        "Sensor Intelligence Agent",
+        "Maintenance Intelligence Agent",
+    ]
+    assert [event.actor for event in detail.events if event.event_type == "specialist.completed"] == [
+        "Intake & Safety Agent",
+        "Building Context Agent",
+        "Sensor Intelligence Agent",
+        "Maintenance Intelligence Agent",
+    ]
     assert tools.payload["evidence_sensor_ids"] == ["VOC-05-01"]
     assert detail.actions[0].requested["asset_id"] == "VOC-05-01"
     assert detail.actions[0].requested["trade"] == "indoor_air_quality"

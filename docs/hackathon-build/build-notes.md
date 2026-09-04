@@ -1,5 +1,13 @@
 # Build Notes
 
+## 2026-09-04 — Coordinated specialist-agent investigation
+
+- Replaced the single generalist model pass with a bounded multi-agent investigation: Intake & Safety, Building Context, Sensor Intelligence, Maintenance Intelligence, and Resident Knowledge agents each receive only their role-specific read context.
+- Relevant specialists run concurrently inside every durable ticket workflow and return typed `SpecialistReport` evidence to an Operations Coordinator agent. The workflow worker pool remains a separate concurrency layer for processing several tickets at once.
+- Kept all specialists read-only. The coordinator can propose only an eligible typed action, and the existing deterministic policy gateway, idempotent action layer, and ticket state machine remain the sole authority for mutations and closure.
+- Added public `specialist.completed` audit events and an Agent Activity roster so judges can see genuine collaboration, evidence provenance, provider/model identity, and the distinction between agent roles and worker instances.
+- Preserved the local-to-AWS seam: the same `AgentRuntime` result contract and specialist topology can move from OpenAI Responses locally to Bedrock/AgentCore without changing workflow or UI contracts.
+
 ## 2026-09-04 — Configurable technician time and causal sensor lifecycle
 
 - Added a 5–180 second technician-duration control to the request composer. The value crosses `building.events`, is retained in the idempotent `ticket.created` intake event, and determines the durable work-order wake-up; direct and catalog tickets retain the environment default.

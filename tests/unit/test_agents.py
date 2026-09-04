@@ -35,6 +35,45 @@ def test_deterministic_runtime_classifies_supported_paths():
         decision = runtime.decide(ticket(subject, description), {})
         assert decision.kind == kind
         assert decision.selected_action == action
+        assert decision.specialist_reports
+        assert decision.tool_calls[-1] == "operations_coordinator.synthesize"
+
+
+def test_operational_ticket_delegates_to_sensor_and_maintenance_specialists():
+    runtime = DeterministicAgentRuntime()
+    decision = runtime.decide(
+        ticket("Odor in the pantry", "There is a burning smell on floor 5"),
+        {
+            "building_facts": {
+                "floor": 5,
+                "primary_sensor": {
+                    "id": "VOC-05-01",
+                    "type": "VOC",
+                    "state": "Critical",
+                    "value": "410 ppb",
+                },
+                "nearby_sensors": [
+                    {
+                        "id": "VOC-05-01",
+                        "type": "VOC",
+                        "state": "Critical",
+                        "value": "410 ppb",
+                    }
+                ],
+                "sensor_histories": {"VOC-05-01": []},
+                "maintenance_history": [],
+            }
+        },
+    )
+
+    roles = [report.role for report in decision.specialist_reports]
+    assert roles == [
+        "Intake & Safety Agent",
+        "Building Context Agent",
+        "Sensor Intelligence Agent",
+        "Maintenance Intelligence Agent",
+    ]
+    assert decision.evidence_sensor_ids == ["VOC-05-01"]
 
 
 def test_strands_runtime_is_a_real_selectable_boundary():

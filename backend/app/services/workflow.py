@@ -282,6 +282,16 @@ class WorkflowService:
         ticket.priority = decision.priority
         ticket.safety_flags = decision.safety_flags
         ticket.confidence = decision.confidence
+        for index, report in enumerate(decision.specialist_reports):
+            findings = "; ".join(report.findings[:2]) if report.findings else report.summary
+            self._event(
+                ticket,
+                "specialist.completed",
+                findings,
+                actor=report.role,
+                payload=report.model_dump(mode="json"),
+                key=f"SPECIALIST-{index + 1}",
+            )
         self._event(
             ticket,
             "agent.decision",
@@ -304,6 +314,8 @@ class WorkflowService:
                 "tools": decision.tool_calls,
                 "evidence_sensor_ids": decision.evidence_sensor_ids,
                 "diagnosis": decision.diagnosis,
+                "coordinator_role": getattr(self.agent, "coordinator_role", "Operations Coordinator"),
+                "specialist_roles": [report.role for report in decision.specialist_reports],
             },
             key="AGENT-TOOLS",
         )
