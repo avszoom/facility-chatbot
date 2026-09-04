@@ -14,6 +14,7 @@ def test_building_simulator_emits_durable_tickets_and_conditions(system):
     assert system.building.telemetry("AHU-ZONE-4B")["temperature_f"] == 77.2
     status = system.simulation.status()
     assert status["issues_generated"] == 2
+    assert status["scenario_count"] == 10
     assert status["last_event"]["ticket_id"] == second.ticket_id
 
 
@@ -27,5 +28,7 @@ def test_live_operations_reports_both_engines_and_impact(system):
     payload = live.json()
     assert payload["simulation"]["status"] == "online"
     assert payload["agent"]["status"] == "online"
+    assert payload["agent"]["worker_count"] == 3
     assert payload["agent"]["active_tickets"][0]["ticket_id"] == created.json()["ticket_id"]
     assert payload["impact"]["actions_performed"] == 0
+    assert payload["impact"]["autonomy_rate"] == 100

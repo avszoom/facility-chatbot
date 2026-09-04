@@ -8,8 +8,7 @@ import time
 
 def main() -> None:
     commands = [
-        [sys.executable, "-m", "uvicorn", "backend.app.main:app", "--host", "127.0.0.1", "--port", "8000"],
-        [sys.executable, "-m", "backend.app.scheduling.local_worker"],
+        [sys.executable, "-m", "scripts.run_operations"],
         [sys.executable, "-m", "backend.app.scheduling.local_simulator"],
         ["npm", "--prefix", "frontend", "run", "dev"],
     ]
@@ -17,7 +16,8 @@ def main() -> None:
 
     def stop(*_args) -> None:
         for process in processes:
-            process.terminate()
+            if process.poll() is None:
+                process.terminate()
 
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)

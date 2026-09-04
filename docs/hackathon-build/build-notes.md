@@ -64,3 +64,13 @@
 - Added the Agent live workspace with world-engine and operations-engine status, active workflow progress, public agent decisions and tool outcomes, and cumulative actions, resolutions, human-needed cases, and estimated human touches saved.
 - Live verification: the simulator generated an amenities enquiry and a warm-room condition; the agent answered the enquiry and autonomously adjusted and independently verified the HVAC outcome.
 - Verification: 16 Python tests, 2 frontend test files, the production UI build, all three workflow checks, and the secret scan passed.
+
+## 2026-09-03 — Autopilot overview and local service boundaries
+
+- The participant incorporated external critique that the interface overstated receptionist workload and asked for explicit Building World, ticket-clearing, and UI services.
+- Added a receptionist-first Overview led by autonomy, avoided touches, Autopilot-owned work, external waits, and the intentionally small human-decision queue. Only human decisions receive a navigation badge.
+- Reworked Requests and Tickets language so every row makes Autopilot ownership, external waiting, or human responsibility explicit.
+- Reframed Agent Activity around parallel ticket workflow instances, a bounded worker pool, public evidence, and a single policy boundary. The simulator control is now subordinate and labeled as a local synthetic feed.
+- Grouped local execution into three service boundaries: Operations (API plus configurable three-worker pool), Building World, and Web UI. Multiple workers claim one bounded job each, allowing independent tickets to progress concurrently.
+- Expanded the building activity catalog from six to ten varied scenarios, added grounded operational knowledge, and suppressed recently repeated subjects.
+- Verification: 17 Python tests, 2 frontend test files, the production UI build, all three lifecycle checks, the safety decision evaluation, and the secret scan passed. The combined three-service launcher reported Building World online, Operations online, and three configured workers.

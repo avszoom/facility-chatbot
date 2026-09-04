@@ -47,25 +47,25 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
     def live_operations() -> dict:
         tickets = runtime.tickets.list()
         dashboard = runtime.repository.metrics()
+        jobs = runtime.repository.list_jobs()
+        all_events = [
+            event.model_dump(mode="json")
+            for ticket in tickets
+            for event in runtime.repository.list_events(ticket.ticket_id)
+        ]
         recent_events = sorted(
-            (
-                event.model_dump(mode="json")
-                for ticket in tickets
-                for event in runtime.repository.list_events(ticket.ticket_id)
-            ),
+            all_events,
             key=lambda event: event["created_at"],
             reverse=True,
         )[:30]
-        actions = [
-            action
-            for ticket in tickets
-            for action in runtime.repository.list_actions(ticket.ticket_id)
-        ]
         return {
             "simulation": runtime.simulation.status(),
             "agent": {
                 "status": "online",
                 "runtime": runtime.agent.name,
+                "worker_count": runtime.settings.agent_worker_count,
+                "active_executions": sum(job.status == "processing" for job in jobs),
+                "queued_tasks": sum(job.status == "pending" for job in jobs),
                 "active_tickets": [
                     ticket.model_dump(mode="json")
                     for ticket in tickets
@@ -74,11 +74,32 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
             },
             "recent_events": recent_events,
             "impact": {
-                "actions_performed": sum(action.status == "completed" for action in actions),
+                "actions_performed": sum(
+                    event["event_type"]
+                    in {
+                        "agent.decision",
+                        "evidence.collected",
+                        "message.sent",
+                        "action.completed",
+                        "work_order.created",
+                        "verification.passed",
+                        "ticket.resolved",
+                    }
+                    for event in all_events
+                ),
                 "issues_resolved": dashboard.resolved,
                 "resolved_autonomously": dashboard.autonomous_resolutions,
                 "needs_user": dashboard.needs_approval + dashboard.escalated,
                 "human_touches_saved": dashboard.human_touches_saved,
+                "autonomy_rate": round(
+                    dashboard.autonomous_resolutions / dashboard.resolved * 100
+                )
+                if dashboard.resolved
+                else 100,
+                "verified_resolutions": dashboard.verified_closures,
+                "waiting_external": sum(
+                    ticket.status == "waiting_technician" for ticket in tickets
+                ),
             },
         }
 

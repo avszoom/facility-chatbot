@@ -16,13 +16,30 @@ Open <http://127.0.0.1:5173>. The API runs at <http://127.0.0.1:8000>.
 
 The default `AGENT_RUNTIME=deterministic` is credential-free and repeatable. Set `AGENT_RUNTIME=strands`, `AWS_REGION`, and `BEDROCK_MODEL_ID` to exercise the real Strands/Bedrock path with your AWS credentials. The UI shows the active runtime.
 
-`make run` starts four independently replaceable local processes: the API, web UI,
-durable operations worker, and building-world simulator. The simulator creates an
+`make run` starts three independently replaceable service groups: **Operations**
+(API plus three durable workers), **Building World**, and **Web UI**.
+The simulator creates an
 occupant request or building condition every 45 seconds by default; set
 `SIMULATION_INTERVAL_SECONDS` to change the cadence, or
 `SIMULATION_ENABLED=false` to turn it off. The **Agent live** workspace shows both
 engines, the durable handoff between them, public decision summaries, tool outcomes,
 and continuously updated impact totals.
+
+To run each service boundary in its own terminal instead:
+
+```bash
+# Terminal 1: API plus the ticket-clearing worker pool
+make run-operations
+
+# Terminal 2: sensors, building conditions, and occupant request generation
+make run-world
+
+# Terminal 3: receptionist web application
+make run-ui
+```
+
+Set `AGENT_WORKER_COUNT` to control how many independent ticket steps can execute
+concurrently. The local default is `3`.
 
 ## Scenario walkthrough
 

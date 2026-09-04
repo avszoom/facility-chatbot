@@ -14,7 +14,9 @@ class SQLiteLeasedJobWorker:
         self.stopped = Event()
 
     def run_once(self) -> int:
-        return self.system.workflow.process_due()
+        # Claim one bounded step at a time so several worker processes distribute
+        # independent ticket workflows instead of one process draining the queue.
+        return self.system.workflow.process_due(limit=1)
 
     def run_forever(self) -> None:
         while not self.stopped.wait(self.system.settings.worker_poll_seconds):

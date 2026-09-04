@@ -59,7 +59,26 @@ class DeterministicAgentRuntime:
                 rationale="The request describes an occupied-zone comfort issue with a reversible control path.",
                 user_update="I’m checking the room conditions and the approved comfort range now.",
             )
-        if any(term in text for term in ("when", "what time", "hours", "open", "close", "gym", "fitness")):
+        if any(
+            term in text
+            for term in (
+                "when",
+                "what time",
+                "hours",
+                "open",
+                "close",
+                "gym",
+                "fitness",
+                "delivery",
+                "visitor check-in",
+                "package",
+                "mailroom",
+                "bicycle",
+                "bike",
+                "wellness room",
+                "recycling",
+            )
+        ):
             return AgentDecision(
                 kind=TicketKind.ENQUIRY,
                 priority=TicketPriority.LOW,

@@ -16,5 +16,35 @@
     "content": "Occupied conference rooms may be adjusted between 68°F and 75°F. Changes outside that range require facilities approval.",
     "source": "Building Alpha Energy and Comfort Policy · section 4.2",
     "keywords": ["conference", "temperature", "warm", "cold", "setpoint", "comfort"]
+  },
+  {
+    "title": "Visitor check-in",
+    "content": "Visitors check in at the main lobby reception desk with photo identification. Their host receives an arrival notification and must confirm access before a temporary badge is issued.",
+    "source": "Building Alpha Tenant Handbook · Visitors · revised August 2026",
+    "keywords": ["visitor", "guest", "check-in", "check in", "badge", "reception", "lobby"]
+  },
+  {
+    "title": "Mailroom package collection",
+    "content": "The lobby mailroom is staffed on weekdays from 8:00 AM to 6:00 PM. Occupants must show an active tenant badge when collecting a package.",
+    "source": "Building Alpha Operations Manual · Mailroom · revised August 2026",
+    "keywords": ["package", "mailroom", "collect", "collection", "delivery notification"]
+  },
+  {
+    "title": "Bicycle storage",
+    "content": "Secure bicycle storage is located on parking level P1 and is available from 5:30 AM to 11:00 PM. Bicycle-room access must be enabled on the occupant's tenant badge.",
+    "source": "Building Alpha Tenant Handbook · Commuter amenities · revised August 2026",
+    "keywords": ["bicycle", "bike", "cycle", "storage", "commuter"]
+  },
+  {
+    "title": "Wellness room",
+    "content": "The wellness room is Room 305 on Floor 3. It is available without a reservation when the occupancy indicator outside the room is green.",
+    "source": "Building Alpha Tenant Handbook · Wellness · revised August 2026",
+    "keywords": ["wellness", "wellness room", "room 305", "reservation"]
+  },
+  {
+    "title": "Secure document recycling",
+    "content": "Confidential documents must be placed in the locked blue consoles located beside each floor's service core. Facilities empties the consoles through the approved shredding vendor.",
+    "source": "Building Alpha Operations Manual · Waste and recycling · revised August 2026",
+    "keywords": ["confidential", "document", "recycling", "shredding", "secure"]
   }
 ]

@@ -83,6 +83,7 @@ export interface LiveOperations {
     last_tick: string | null;
     next_tick: string;
     interval_seconds: number;
+    scenario_count: number;
     last_event: {
       type: string;
       ticket_id: string;
@@ -94,6 +95,9 @@ export interface LiveOperations {
   agent: {
     status: string;
     runtime: string;
+    worker_count: number;
+    active_executions: number;
+    queued_tasks: number;
     active_tickets: Ticket[];
   };
   recent_events: TicketEvent[];
@@ -103,5 +107,8 @@ export interface LiveOperations {
     resolved_autonomously: number;
     needs_user: number;
     human_touches_saved: number;
+    autonomy_rate: number;
+    verified_resolutions: number;
+    waiting_external: number;
   };
 }

@@ -28,10 +28,10 @@ SCENARIOS: tuple[dict[str, Any], ...] = (
         "location_id": "BLDG-A-F04-CONF-4B",
     },
     {
-        "event": "occupant_access_request",
+        "event": "visitor_enquiry",
         "condition": "normal",
-        "subject": "Visitor badge is not activating the lift",
-        "description": "My guest badge will not select Floor 8. Please help us reach the meeting.",
+        "subject": "Where should my visitor check in?",
+        "description": "A client is arriving for a Floor 8 meeting. What is the visitor check-in process?",
         "requester": "Building Occupant",
         "location_id": "BLDG-A-LOBBY",
     },
@@ -52,12 +52,44 @@ SCENARIOS: tuple[dict[str, Any], ...] = (
         "location_id": "BLDG-A-LOBBY",
     },
     {
-        "event": "equipment_report",
+        "event": "mailroom_enquiry",
         "condition": "normal",
-        "subject": "Conference room display is offline",
-        "description": "The wall display in Conference Room 4B is blank before a client meeting.",
+        "subject": "When can I collect a package from the mailroom?",
+        "description": "I received a delivery notification. What are the staffed package collection hours?",
         "requester": "Building Occupant",
-        "location_id": "BLDG-A-F04-CONF-4B",
+        "location_id": "BLDG-A-LOBBY",
+    },
+    {
+        "event": "amenity_enquiry",
+        "condition": "normal",
+        "subject": "How do I access the bicycle room?",
+        "description": "I plan to cycle tomorrow. Where is bicycle storage and what access is required?",
+        "requester": "Priya Shah",
+        "location_id": "BLDG-A-LOBBY",
+    },
+    {
+        "event": "amenity_enquiry",
+        "condition": "normal",
+        "subject": "Where is the wellness room?",
+        "description": "Could you tell me where the wellness room is and whether it needs a reservation?",
+        "requester": "Marcus Lee",
+        "location_id": "BLDG-A-LOBBY",
+    },
+    {
+        "event": "operations_enquiry",
+        "condition": "normal",
+        "subject": "Where should confidential recycling go?",
+        "description": "We have several boxes of documents. What is the secure recycling procedure?",
+        "requester": "Elena Garcia",
+        "location_id": "BLDG-A-F07-EAST",
+    },
+    {
+        "event": "occupant_enquiry",
+        "condition": "normal",
+        "subject": "Is the fitness center open on weekends?",
+        "description": "What are the Saturday and Sunday fitness center hours?",
+        "requester": "Building Occupant",
+        "location_id": "BLDG-A-F01-FITNESS",
     },
 )
 
@@ -66,6 +98,7 @@ class BuildingSimulationService:
     """Independent world engine that emits durable demand into the ticket boundary."""
 
     STATE_KEY = "building_simulation"
+    DEDUP_WINDOW = timedelta(minutes=20)
 
     def __init__(
         self,
@@ -101,7 +134,12 @@ class BuildingSimulationService:
         if state is None:
             state = self._default_state()
             self.repository.set_state(self.STATE_KEY, state)
-        return {**state, "status": "online" if self.enabled else "paused", "interval_seconds": self.interval_seconds}
+        return {
+            **state,
+            "status": "online" if self.enabled else "paused",
+            "interval_seconds": self.interval_seconds,
+            "scenario_count": len(SCENARIOS),
+        }
 
     def tick(self, *, now: datetime | None = None, force: bool = False) -> Ticket | None:
         current = now or datetime.now(UTC)
@@ -111,7 +149,25 @@ class BuildingSimulationService:
         next_tick = datetime.fromisoformat(state["next_tick"]) if state.get("next_tick") else current
         if not force and next_tick > current:
             return None
-        scenario = SCENARIOS[int(state.get("sequence", 0)) % len(SCENARIOS)]
+        start = int(state.get("sequence", 0))
+        recent_subjects = {
+            ticket.subject
+            for ticket in self.tickets.list()
+            if ticket.created_at >= current - self.DEDUP_WINDOW
+        }
+        candidates = [
+            (start + offset, SCENARIOS[(start + offset) % len(SCENARIOS)])
+            for offset in range(len(SCENARIOS))
+            if force
+            or str(SCENARIOS[(start + offset) % len(SCENARIOS)]["subject"])
+            not in recent_subjects
+        ]
+        if not candidates:
+            state["next_tick"] = (current + timedelta(seconds=self.interval_seconds)).isoformat()
+            state["duplicates_suppressed"] = int(state.get("duplicates_suppressed", 0)) + 1
+            self.repository.set_state(self.STATE_KEY, state)
+            return None
+        scenario_index, scenario = candidates[0]
         condition = self.building.inject_simulated_condition(str(scenario["condition"]))
         ticket = self.tickets.create(
             TicketCreate(
@@ -124,8 +180,9 @@ class BuildingSimulationService:
         next_at = current + timedelta(seconds=self.interval_seconds)
         next_state = {
             "status": "online" if self.enabled else "paused",
-            "sequence": int(state.get("sequence", 0)) + 1,
+            "sequence": scenario_index + 1,
             "issues_generated": int(state.get("issues_generated", 0)) + 1,
+            "duplicates_suppressed": int(state.get("duplicates_suppressed", 0)),
             "last_tick": current.isoformat(),
             "next_tick": next_at.isoformat(),
             "last_event": {

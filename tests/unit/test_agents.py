@@ -21,6 +21,8 @@ def test_deterministic_runtime_classifies_supported_paths():
     runtime = DeterministicAgentRuntime()
     cases = [
         ("Gym hours", "When does the fitness center close?", TicketKind.ENQUIRY, "answer_enquiry"),
+        ("Catering delivery", "Where should the delivery use the loading dock?", TicketKind.ENQUIRY, "answer_enquiry"),
+        ("Visitor arrival", "What is the visitor check-in process?", TicketKind.ENQUIRY, "answer_enquiry"),
         ("Room warm", "The conference room is hot", TicketKind.SERVICE_REQUEST, "inspect_temperature"),
         ("Burning smell", "Lights flicker and smell hot", TicketKind.INCIDENT, "investigate_incident"),
     ]

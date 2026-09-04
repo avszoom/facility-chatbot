@@ -12,7 +12,7 @@ The same domain services run locally and on AWS. Persistence, event scheduling, 
 - **Agent:** Strands Agents SDK for Python with Pydantic structured output, custom tools, and lifecycle hooks.
 - **Model:** Amazon Bedrock model through Strands; deterministic fixtures only for tests and offline UI development.
 - **Local persistence:** SQLite in WAL mode.
-- **Local workflow:** separate Python worker polling a persisted event/outbox table; no in-memory timers as the source of truth.
+- **Local workflow:** an Operations service containing the API and a configurable pool of Python workers polling a persisted event/outbox table; no in-memory timers as the source of truth.
 - **Frontend:** React, TypeScript, Vite, TanStack Query, React Router, CSS variables; avoid a heavyweight component system.
 - **Streaming:** Server-Sent Events with API refetch on reconnect.
 - **Tests:** pytest, FastAPI TestClient/httpx, Vitest, React Testing Library, and one Playwright hero-flow test if time permits.
@@ -30,10 +30,11 @@ Official references:
 ## Architecture
 
 ```text
-React Operations Inbox
+React Autopilot Workspace
         │ REST + SSE
         ▼
-FastAPI application ────────────────┐
+Operations service ─────────────────┐
+  FastAPI + worker pool             │
         │                           │
         ▼                           ▼
 Ticket service                 Approval service
@@ -42,10 +43,10 @@ Ticket service                 Approval service
 SQLite repositories ◀──────────────┘
         │ persisted events/outbox
         ▼
-Durable worker
+Durable leased-job queue
         │ one bounded ticket step
         ▼
-Strands FacilityOps Agent
+Isolated Strands agent execution
         │ typed decision + tool calls
         ▼
 Policy gateway
@@ -117,6 +118,11 @@ Use one primary Strands agent with a focused system prompt, ticket context, elig
 - requested wake-up or escalation reason
 
 Do not create a multi-agent swarm for the MVP. If specialist behavior is useful, expose triage, investigation, and response drafting as explicit bounded functions or later Strands agents behind the same interface.
+
+One agent role definition can have several isolated executions at the same time. Each
+execution is scoped to one ticket/workflow correlation ID, and each worker claims only
+one bounded workflow step. `AGENT_WORKER_COUNT` limits local concurrency. Waiting for a
+person, technician, or verification window persists state and releases the worker.
 
 ### Tools
 
@@ -242,14 +248,17 @@ Provide these commands:
 ```text
 make setup
 make seed
-make run-api
-make run-worker
+make run-operations
+make run-world
 make run-ui
 make test
 make demo-check
 ```
 
-The API, worker, and UI run as separate processes. Stopping the worker during `waiting_technician`, then restarting it, must visibly resume the same ticket without duplicate actions.
+The three logical services are Operations (API plus worker pool), Building World
+(sensors and ticket generation), and Web UI. `make run` starts all three. Stopping
+Operations during `waiting_technician`, then restarting it, must visibly resume the
+same ticket without duplicate actions.
 
 ## AWS Migration
 

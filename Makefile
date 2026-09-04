@@ -1,4 +1,4 @@
-.PHONY: setup seed run run-api run-worker run-simulator run-ui test test-agent verify-strands demo-check demo-rehearsal verify frontend-build secret-scan clean-data
+.PHONY: setup seed run run-operations run-world run-api run-worker run-simulator run-ui test test-agent verify-strands demo-check demo-rehearsal verify frontend-build secret-scan clean-data
 
 PYTHON ?= .venv/bin/python
 PIP ?= .venv/bin/pip
@@ -13,6 +13,12 @@ seed:
 
 run:
 	$(PYTHON) scripts/run_local.py
+
+run-operations:
+	$(PYTHON) -m scripts.run_operations
+
+run-world:
+	$(PYTHON) -m backend.app.scheduling.local_simulator
 
 run-api:
 	$(PYTHON) -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload

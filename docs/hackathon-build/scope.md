@@ -39,7 +39,7 @@ The inbox starts with three new tickets. The agent resolves two with zero operat
 - A general-purpose chatbot.
 - Autonomous life-safety changes, electrical isolation, expensive purchases, or irreversible actions.
 - Promotions/offers in the MVP; this dilutes the professional workflow and can be added later.
-- A large swarm of agents. One accountable orchestrator with focused Strands capabilities is easier to understand and verify.
+- An unbounded persona swarm. The product uses one accountable agent definition with a bounded pool of isolated ticket-workflow instances so unrelated tickets can progress concurrently.
 - Reusing the previous project's agent, orchestration, UI, or demo code.
 
 ## Time Box

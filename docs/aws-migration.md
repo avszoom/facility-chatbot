@@ -7,7 +7,7 @@ The domain models, state machine, policy rules, action gateway, ticket service, 
 | Building-world event generation | Durable `BuildingSimulationService` + independent simulator process | EventBridge Scheduler + Lambda, IoT Core rules, or a synthetic test-event producer | simulation state + ticket intake boundary |
 | Agent reasoning | `StrandsAgentRuntime` in API/worker process | Strands in Bedrock AgentCore Runtime | `AgentRuntime.decide → AgentDecision` |
 | Durable tickets/audit | SQLite WAL tables | DynamoDB single table + conditional writes | `OperationsRepository` |
-| Delayed/resumable jobs | SQLite leased-job worker | EventBridge Scheduler → SQS/Lambda, DLQ | `WorkflowJob` + `WorkflowService` |
+| Delayed/resumable jobs | Configurable SQLite leased-job worker pool | EventBridge Scheduler → SQS/Lambda, DLQ | `WorkflowJob` + `WorkflowService` |
 | Knowledge | Versioned local JSON | S3 + OpenSearch or Bedrock Knowledge Bases | `KnowledgePort.search` |
 | Telemetry and commands | Seeded building simulator | IoT SiteWise/TwinMaker + IoT Core command adapter | `BuildingPort` |
 | Work orders | Local CMMS simulator | AgentCore Gateway or direct CMMS API | `WorkOrderPort` |
