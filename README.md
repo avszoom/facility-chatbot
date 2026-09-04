@@ -64,6 +64,14 @@ IDs; unknown or cross-floor IDs are rejected. Public `agent.tools_completed` and
 chain-of-thought. A sensor-only ticket follows the same durable workflow as a
 resident report.
 
+Localized incident inspection is automated end to end: the agent may create and
+assign a qualified technician work order without approval when no shared-system
+change or service interruption is proposed. Work on shared distribution equipment,
+safety-critical controls, or disruptive infrastructure still requires a human
+decision. The ticket remains visibly ongoing while the technician works, records
+the diagnosed cause and repair, and closes only after fresh telemetry verifies the
+outcome.
+
 To run each service boundary in its own terminal instead:
 
 ```bash

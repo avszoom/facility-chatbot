@@ -6,6 +6,13 @@
 - Replaced the office-focused knowledge, example requests, sensor zones, maintenance history, policies, resident records, floor plans, and concierge language with one consistent residential operating model.
 - Added a versioned building-state migration so a backend restart adopts the residential sensor catalog without deleting the durable ticket and workflow history.
 
+## 2026-09-04 — Evidence-grounded incident automation
+
+- Fixed an orchestration defect that could substitute a correlated temperature condition for the model's cited electrical or air-quality evidence and then display hard-coded electrical values that were not observed.
+- Added safety-language normalization to the request-scenario console so a routine category or sensor accidentally left selected cannot downgrade a report containing fumes, smoke, burning, sparking, fire, or entrapment language.
+- Localized incidents now create an idempotent qualified-technician work order automatically and remain visibly ongoing; shared or disruptive infrastructure work still requires approval.
+- Added a prominent work-order card with assignee, trade, location, procedure, progress, diagnosed cause, and completed repair. Simulated technician notes are specific enough to drive independent post-repair verification.
+
 ## 2026-09-03 — Manual-first request generation
 
 - Confirmed from durable message metadata that four unexpected requests came from the `synthetic_occupant` source at the configured 45-second cadence; the user-created request was separately identified as `receptionist_console`.

@@ -72,11 +72,12 @@ def test_general_floor_report_uses_the_relevant_sensor_without_a_scripted_condit
     decision = next(event for event in detail.events if event.event_type == "agent.decision")
     tools = next(event for event in detail.events if event.event_type == "agent.tools_completed")
 
-    assert detail.ticket.status == TicketStatus.NEEDS_APPROVAL
+    assert detail.ticket.status == TicketStatus.WAITING_TECHNICIAN
     assert decision.payload["evidence_sensor_ids"] == ["VOC-05-01"]
     assert tools.payload["evidence_sensor_ids"] == ["VOC-05-01"]
     assert detail.actions[0].requested["asset_id"] == "VOC-05-01"
     assert detail.actions[0].requested["trade"] == "indoor_air_quality"
+    assert detail.work_order and detail.work_order.status == "in_progress"
 
 
 def test_service_request_closes_only_after_verification(system):

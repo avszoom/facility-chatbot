@@ -51,7 +51,7 @@ const requestPresets: Record<RequestType, RequestPreset> = {
     subject: "Unusual burning smell outside Apartment 5E",
     description: "There is a strong burning smell in the corridor outside Apartment 5E. I cannot see smoke, but the odor is getting stronger.",
     requester: "Building Resident", floor: 5, room: "Apartment 5E", condition: "smoke_or_odor",
-    agentOutcome: "Correlate the report with the local alarm, request approval, dispatch the correct trade, and verify clearance.",
+    agentOutcome: "Correlate the report with local evidence, create a qualified technician work order, monitor progress, and verify clearance.",
   },
 };
 
@@ -133,6 +133,7 @@ export function GeneratorView({ live, busy, onPublishRequest, onGenerate, onOpen
     ? `${sensorId} at Floor ${selectedFloor} · ${selectedRoom} will enter ${conditionType === "smoke_or_odor" || conditionType === "electrical_overheat" ? "critical alarm" : "warning"}.`
     : `Floor ${selectedFloor} · ${selectedRoom} remains healthy; only the resident request is published.`;
   const condition = live.simulation.last_event?.condition.condition;
+  const publishedSensor = receipt?.payload.scenario.condition.sensor_id;
 
   return <section className="generator-view">
     <header className="generator-heading"><div><p>RESIDENTIAL TOWER CONTROL</p><h2>Create a real resident scenario</h2><span>Select any apartment or amenity, publish the resident report, and induce only the matching building condition.</span></div><span className="generator-state paused"><i />Console-only publishing</span></header>
@@ -155,7 +156,7 @@ export function GeneratorView({ live, busy, onPublishRequest, onGenerate, onOpen
         <label>Subject<input value={subject} onChange={(event) => setSubject(event.target.value)} required minLength={3} maxLength={120} /></label>
         <label>Resident message<textarea value={description} onChange={(event) => setDescription(event.target.value)} required minLength={3} maxLength={2000} rows={4} placeholder="Describe what the resident is asking or reporting…" /><small>The agent classifies the text independently; the selected condition controls the simulated sensor evidence.</small></label>
         <button className="publish-button" disabled={busy}>Create request and building scenario</button>
-        {receipt && <div className="request-receipt"><span>✓</span><div><b>{receipt.payload.ticket_id} published</b><p>Request and {sensorId || "normal building state"} are correlated on <strong>building.events</strong>.</p><div><button type="button" onClick={onOpenActivity}>Watch agent activity</button><button type="button" onClick={onOpenBuilding}>View building sensors</button></div></div></div>}
+        {receipt && <div className="request-receipt"><span>✓</span><div><b>{receipt.payload.ticket_id} published</b><p>Request and {publishedSensor || "normal building state"} are correlated on <strong>building.events</strong>.</p>{receipt.payload.scenario.normalization && <em>{receipt.payload.scenario.normalization}</em>}<div><button type="button" onClick={onOpenActivity}>Watch agent activity</button><button type="button" onClick={onOpenBuilding}>View building sensors</button></div></div></div>}
       </form>
 
       <section className="generator-card request-lifecycle"><div className="generator-card-title"><span>02</span><div><h3>What happens next</h3><p>One correlated scenario, visible across the product.</p></div></div><div className={`world-effect ${requestType}`}><small>BUILDING WORLD EFFECT</small><b>{worldEffect}</b>{sensorId && <span className="alarm-chip">● Location-specific sensor condition</span>}</div><ol><li><i>1</i><div><b>Publish</b><span>The report and condition enter durable pub/sub together.</span></div></li><li><i>2</i><div><b>Create workflow</b><span>An intake worker idempotently creates the ticket and checkpoint.</span></div></li><li><i>3</i><div><b>Investigate</b><span>The agent reads the request, policy, knowledge, and correlated sensor.</span></div></li><li><i>4</i><div><b>Act or coordinate</b><span>{preset.agentOutcome}</span></div></li><li><i>5</i><div><b>Update everywhere</b><span>Agent Activity streams each step; Tickets and Building refresh live.</span></div></li></ol></section>

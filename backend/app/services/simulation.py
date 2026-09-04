@@ -219,6 +219,28 @@ class BuildingSimulationService:
         """Publish a receptionist-authored request through the building event boundary."""
         current = now or datetime.now(UTC)
         state = self.status()
+        requested_type = request_type
+        requested_condition = condition_type
+        text = f"{request.subject} {request.description}".lower()
+        safety_terms = ("burning", "smoke", "fume", "sparking", "trapped", "fire")
+        electrical_terms = (
+            "circuit",
+            "electric",
+            "outlet",
+            "breaker",
+            "wiring",
+            "flicker",
+            "spark",
+        )
+        safety_override = next((term for term in safety_terms if term in text), None)
+        if safety_override:
+            request_type = "incident"
+            condition_type = (
+                "electrical_overheat"
+                if any(term in text for term in electrical_terms)
+                else "smoke_or_odor"
+            )
+        request = request.model_copy(update={"kind": request_type})
         event_type = {
             "enquiry": "resident_enquiry",
             "service_request": "resident_service_request",
@@ -242,6 +264,17 @@ class BuildingSimulationService:
                     "scenario_type": request_type,
                     "condition": condition,
                     "source": "receptionist_console",
+                    "requested_scenario_type": requested_type,
+                    "requested_condition_type": requested_condition,
+                    "normalization": (
+                        f"Safety language '{safety_override}' upgraded the request to an incident and matched {condition_type}."
+                        if safety_override
+                        and (
+                            requested_type != request_type
+                            or requested_condition != condition_type
+                        )
+                        else None
+                    ),
                 },
             },
             correlation_id=f"CORR-{ticket_id}",

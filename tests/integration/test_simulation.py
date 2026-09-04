@@ -206,12 +206,14 @@ def test_floor_five_pantry_odor_correlates_ticket_sensor_and_agent(system):
     assert alarm["state"] == "Critical"
     assert snapshot["active_conditions"][ticket_id]["sensor_id"] == "VOC-05-01"
 
-    for _ in range(4):
+    for _ in range(3):
         system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=10)
     detail = system.tickets.detail(ticket_id)
-    assert detail.ticket.status == "needs_approval"
+    assert detail.ticket.status == "waiting_technician"
     assert detail.actions[0].requested["asset_id"] == "VOC-05-01"
     assert detail.actions[0].requested["trade"] == "indoor_air_quality"
+    assert detail.actions[0].status == "completed"
+    assert detail.work_order and detail.work_order.status == "in_progress"
 
 
 def test_digital_twin_owns_all_sensors_and_rolling_history(system):
@@ -240,7 +242,7 @@ def test_agent_uses_sensor_alarm_and_maintenance_history_without_complaint(syste
             break
     assert message is not None
     ticket_id = str(message.payload["ticket_id"])
-    for _ in range(4):
+    for _ in range(3):
         system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=20)
 
     detail = system.tickets.detail(ticket_id)
@@ -249,4 +251,50 @@ def test_agent_uses_sensor_alarm_and_maintenance_history_without_complaint(syste
     assert correlated.payload["primary_sensor"]["id"] == "VOC-06-01"
     assert correlated.payload["maintenance_history"]
     assert "Live telemetry" in decision.summary
-    assert detail.ticket.status == "needs_approval"
+    assert detail.ticket.status == "waiting_technician"
+    assert detail.work_order and detail.work_order.trade == "indoor_air_quality"
+
+
+def test_safety_language_corrects_a_mismatched_console_scenario_and_dispatches(system):
+    client = TestClient(create_app(system))
+    published = client.post(
+        "/api/simulation/request",
+        json={
+            "request_type": "service_request",
+            "condition_type": "temperature_high",
+            "subject": "Fumes and a bad circuit smell on Floor 4",
+            "description": "There are fumes and a bad circuit smell in the Floor 4 laundry room.",
+            "requester": "Marcus Lee",
+            "location_id": "BLDG-A-F04-LAUNDRY-ROOM",
+        },
+    )
+
+    assert published.status_code == 202
+    payload = published.json()["payload"]
+    ticket_id = payload["ticket_id"]
+    scenario = payload["scenario"]
+    assert scenario["scenario_type"] == "incident"
+    assert scenario["condition"]["condition"] == "electrical_overheat"
+    assert scenario["condition"]["sensor_id"] == "PWR-04-01"
+    assert scenario["normalization"]
+
+    for _ in range(3):
+        system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=10)
+
+    detail = system.tickets.detail(ticket_id)
+    assert detail.ticket.kind == "incident"
+    assert detail.ticket.status == "waiting_technician"
+    assert detail.work_order and detail.work_order.status == "in_progress"
+    assert detail.work_order.asset_id == "PWR-04-01"
+    assert "laundry" in detail.work_order.procedure.lower()
+    assert detail.actions[0].policy_rule == "OPS-DISPATCH-003"
+    assert not any(event.event_type == "approval.requested" for event in detail.events)
+    evidence = next(event for event in detail.events if event.event_type == "evidence.collected")
+    assert "PWR-04-01" in evidence.summary
+    assert "126.4°F" in evidence.summary
+
+    system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=10)
+    system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=10)
+    completed = system.tickets.detail(ticket_id)
+    assert completed.ticket.status == "resolved"
+    assert completed.work_order and "loose neutral terminal" in completed.work_order.completion_notes

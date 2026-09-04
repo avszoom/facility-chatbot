@@ -28,7 +28,23 @@ class ActionPolicy:
                     "Occupied-zone setpoint is inside the approved 68–75°F range",
                 )
             return PolicyDecision(RiskTier.FORBIDDEN, "HVAC-SP-900", "Setpoint is outside the equipment policy")
-        if action in {"dispatch_electrical_technician", "dispatch_safety_technician", "reset_critical_equipment"}:
+        if action in {"dispatch_electrical_technician", "dispatch_safety_technician"}:
+            if (
+                parameters.get("qualified_personnel") is True
+                and parameters.get("scope") == "localized"
+                and parameters.get("service_disruption") is False
+            ):
+                return PolicyDecision(
+                    RiskTier.AUTONOMOUS,
+                    "OPS-DISPATCH-003",
+                    "A qualified technician may be dispatched for a localized inspection without changing safety-critical equipment",
+                )
+            return PolicyDecision(
+                RiskTier.APPROVAL_REQUIRED,
+                "OPS-APPROVAL-010",
+                "Shared infrastructure or potentially disruptive work requires an operator decision",
+            )
+        if action == "reset_critical_equipment":
             return PolicyDecision(
                 RiskTier.APPROVAL_REQUIRED,
                 "OPS-APPROVAL-010",

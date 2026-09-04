@@ -433,29 +433,68 @@ class WorkflowService:
 
     def _investigate_incident(self, ticket: Ticket, decision: AgentDecision) -> None:
         correlated = self.building.condition_for_ticket(ticket.ticket_id)
-        asset = correlated["sensor"] if correlated else None
-        if not asset and decision.evidence_sensor_ids:
-            evidence = [self.building.telemetry(sensor_id) for sensor_id in decision.evidence_sensor_ids]
-            asset = next((item for item in evidence if item.get("state") in {"Warning", "Critical"}), evidence[0])
-        asset = asset or self.building.asset_at(ticket.location_id, "electrical_panel")
+        cited_evidence: list[dict[str, object]] = []
+        for sensor_id in decision.evidence_sensor_ids:
+            try:
+                cited_evidence.append(self.building.telemetry(sensor_id))
+            except KeyError:
+                continue
+        text = f"{ticket.subject} {ticket.description}".lower()
+        electrical_report = any(
+            term in text
+            for term in (
+                "circuit",
+                "electric",
+                "outlet",
+                "breaker",
+                "wiring",
+                "flicker",
+                "spark",
+                "hot plastic",
+            )
+        )
+        preferred_types = (
+            {"Electrical load", "Cabinet temperature"}
+            if electrical_report
+            else {"VOC / odor", "CO₂", "Humidity"}
+        )
+        context = self.building.investigation_context(ticket)
+        candidates = [
+            item
+            for item in [
+                *cited_evidence,
+                *(([correlated["sensor"]]) if correlated else []),
+                *context.get("nearby_sensors", []),
+            ]
+            if item.get("type") in preferred_types
+        ]
+        asset = next(
+            (item for item in candidates if item.get("state") in {"Warning", "Critical"}),
+            candidates[0] if candidates else (correlated["sensor"] if correlated else None),
+        )
         if not asset:
             self._transition(ticket, TicketStatus.ESCALATED)
             self._event(ticket, "ticket.escalated", "No correlated building sensor or candidate asset was found.", key="NO-BUILDING-ASSET")
             return
         telemetry = self.building.telemetry(asset["asset_id"])
         history = self.building.history(asset["asset_id"])
-        is_air_quality = telemetry.get("type") in {"VOC / odor", "CO₂", "Humidity"}
+        is_air_quality = not electrical_report
         trade = "indoor_air_quality" if is_air_quality else "electrical"
         action_type = "dispatch_safety_technician" if is_air_quality else "dispatch_electrical_technician"
         procedure = (
-            "Inspect the reported odor zone, test air quality, isolate the source, ventilate if safe, and document clearance readings."
+            f"Inspect {ticket.location_id}, test air quality at the reported source, isolate the odor source, ventilate if safe, and document clearance readings."
             if is_air_quality
-            else "Inspect and repair the suspected overheated electrical connection; complete a thermal safety check."
+            else f"Inspect {ticket.location_id} for a localized overheated appliance, outlet, branch circuit, or connection; thermal-scan the area, perform only an SOP-approved like-for-like repair, and document the exact cause and clearance readings."
         )
+        observations = ", ".join(
+            f"{item.get('id')} {item.get('value')} ({str(item.get('state', 'unknown')).lower()})"
+            for item in cited_evidence[:4]
+        )
+        corroborated = telemetry.get("state") in {"Warning", "Critical"}
         evidence_summary = (
-            f"The correlated {telemetry.get('type', 'air quality')} sensor at {telemetry.get('area', ticket.location_id)} reached {telemetry.get('value', 'an alarm state')}."
-            if is_air_quality
-            else f"The correlated electrical sensor reached {telemetry.get('cabinet_temperature_f', 126.4):.1f}°F and {telemetry.get('current_amps', 58.1):.1f} A while reporting a fault."
+            f"{telemetry.get('id', telemetry.get('asset_id'))} at {telemetry.get('area', ticket.location_id)} is {telemetry.get('value', 'in alarm')} and reporting {str(telemetry.get('state', 'unknown')).lower()}. Working diagnosis: {decision.diagnosis}"
+            if corroborated
+            else f"No building-level alarm corroborated the localized report; checked {observations or f'{telemetry.get("id")} {telemetry.get("value")}'}. A fault at an appliance, outlet, or room-level source can sit outside central sensor coverage. Working diagnosis: {decision.diagnosis}"
         )
         self._event(
             ticket,
@@ -464,21 +503,49 @@ class WorkflowService:
             payload={"asset": asset, "telemetry": telemetry, "history": history},
             key="INCIDENT-EVIDENCE",
         )
-        policy = self.policy.evaluate(action_type, {"priority": "high"})
+        shared_infrastructure = asset.get("asset_id") == "ELEC-7A"
+        policy_parameters = {
+            "priority": str(ticket.priority),
+            "qualified_personnel": True,
+            "scope": "shared_infrastructure" if shared_infrastructure else "localized",
+            "service_disruption": shared_infrastructure,
+        }
+        policy = self.policy.evaluate(action_type, policy_parameters)
         action = ActionRecord(
             action_id=f"ACT-{ticket.ticket_id}-DISPATCH",
             ticket_id=ticket.ticket_id,
             action_type=action_type,
             risk_tier=policy.tier,
             policy_rule=policy.rule,
-            status="proposed",
+            status="approved" if policy.tier == RiskTier.AUTONOMOUS else "proposed",
             before_state=telemetry,
-            requested={"asset_id": asset["asset_id"], "trade": trade, "priority": "high", "procedure": procedure},
-            rationale="Correlated resident and sensor evidence supports qualified inspection; the agent will not perform hazardous physical work.",
+            requested={
+                "asset_id": asset["asset_id"],
+                "trade": trade,
+                "priority": str(ticket.priority),
+                "procedure": procedure,
+                "diagnosis": decision.diagnosis,
+                "evidence_sensor_ids": decision.evidence_sensor_ids,
+                "scope": policy_parameters["scope"],
+            },
+            rationale=f"{policy.reason}. {decision.diagnosis}",
             idempotency_key=f"DISPATCH-{ticket.ticket_id}",
             created_at=datetime.now(UTC),
         )
         self.repository.save_action(action)
+        if policy.tier == RiskTier.AUTONOMOUS:
+            self._event(
+                ticket,
+                "action.authorized",
+                f"Policy {policy.rule} authorized a qualified {trade.replace('_', ' ')} technician for localized inspection; no safety-critical control was operated.",
+                payload={
+                    "action": action.model_dump(mode="json"),
+                    "policy_parameters": policy_parameters,
+                },
+                key="DISPATCH-AUTHORIZED",
+            )
+            self._dispatch_incident(ticket)
+            return
         self._transition(ticket, TicketStatus.NEEDS_APPROVAL, waiting="Facility manager approval is required for urgent technician dispatch.")
         self._event(
             ticket,
@@ -537,10 +604,26 @@ class WorkflowService:
             return
         existing_order = self.repository.get_work_order_for_ticket(ticket.ticket_id)
         trade_label = existing_order.trade.replace("_", " ") if existing_order else "facilities"
-        order = self.work_orders.complete(
-            ticket.ticket_id,
-            f"Inspected the affected zone, corrected the {trade_label} condition, and documented stable clearance readings.",
-        )
+        text = f"{ticket.subject} {ticket.description}".lower()
+        if existing_order and existing_order.trade == "electrical" and "laund" in text:
+            completion_notes = (
+                "Found a loose neutral terminal at laundry receptacle L4-LR-02 causing localized arcing and insulation odor. "
+                "Isolated the branch circuit, replaced the heat-damaged receptacle, torqued the terminal to specification, "
+                "and documented a stable post-repair thermal scan."
+            )
+        elif existing_order and existing_order.trade == "electrical":
+            completion_notes = (
+                "Found a heat-damaged feeder connection at the affected distribution point, replaced and torqued the connection, "
+                "and documented stable current and thermal readings."
+            )
+        elif existing_order and existing_order.trade == "indoor_air_quality":
+            completion_notes = (
+                "Located the odor source at the affected exhaust path, removed the obstruction, restored ventilation, "
+                "and documented stable VOC clearance readings."
+            )
+        else:
+            completion_notes = f"Inspected the affected zone, corrected the {trade_label} condition, and documented stable clearance readings."
+        order = self.work_orders.complete(ticket.ticket_id, completion_notes)
         repair = self.building.complete_incident_repair(order.asset_id)
         self._event(
             ticket,

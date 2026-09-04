@@ -238,6 +238,15 @@ export interface PublishedRequest {
       type: string;
       scenario_type: RequestType;
       source: string;
+      condition: {
+        condition: CustomRequestInput["condition_type"];
+        sensor_id: string | null;
+        location_id: string;
+        updated_at: string;
+      };
+      requested_scenario_type?: RequestType;
+      requested_condition_type?: CustomRequestInput["condition_type"];
+      normalization?: string | null;
     };
   };
 }
