@@ -40,18 +40,17 @@ step instead of starting the ticket over.
 
 The Building World owns a 60-device digital twin across all ten floors. It advances
 temperature, CO₂, humidity, VOC/odor, occupancy, and electrical telemetry every two
-seconds and keeps bounded rolling history. Automatic synthetic ticket creation starts
-paused so a clean database contains only requests you submit. Start it explicitly in
-the **Request generator** tab when you want continuous scenarios; its cadence defaults
-to 45 seconds. Sensor monitoring continues whether request generation is running or
-paused. The **Agent live** workspace shows both engines, the durable handoff, public
-decision summaries, tool outcomes, and continuously updated impact totals.
+seconds and keeps bounded rolling history. It never creates tickets on a timer. Every
+request must come from an explicit console action: New request, the Request generator
+composer, Trigger test event, or an intentional load-test batch. Sensor monitoring
+continues independently without adding tickets. The **Agent live** workspace shows
+both engines, the durable handoff, public decision summaries, tool outcomes, and
+continuously updated impact totals.
 
 The compact **Request generator** tab controls the Building World without bypassing
-the production-shaped path. Choose 1–20 requests, restrict the batch to enquiries,
-service requests, or incidents, change the automatic cadence, and pause or resume
-continuous generation. Every controlled request is still published to
-`building.events` and consumed by Operations.
+the production-shaped path. Compose a location-specific request or deliberately
+publish 1–20 enquiry, service-request, or incident scenarios for a concurrency test.
+Every request is still published to `building.events` and consumed by Operations.
 
 For every operational ticket, the model chooses among six live sensors at the
 reported floor, reads the relevant rolling histories, and can search maintenance

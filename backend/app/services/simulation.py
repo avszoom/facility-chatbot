@@ -133,11 +133,16 @@ class BuildingSimulationService:
         self.interval_seconds = interval_seconds
         if self.repository.get_state(self.STATE_KEY) is None:
             self.repository.set_state(self.STATE_KEY, self._default_state())
+        else:
+            state = self.repository.get_state(self.STATE_KEY) or {}
+            if state.get("running"):
+                state.update({"running": False, "status": "paused"})
+                self.repository.set_state(self.STATE_KEY, state)
 
     def _default_state(self) -> dict[str, Any]:
         return {
-            "status": "online" if self.enabled else "paused",
-            "running": self.enabled,
+            "status": "paused",
+            "running": False,
             "sequence": 0,
             "issues_generated": 0,
             "interval_seconds": self.interval_seconds,
@@ -153,8 +158,8 @@ class BuildingSimulationService:
             self.repository.set_state(self.STATE_KEY, state)
         return {
             **state,
-            "status": "online" if state.get("running", self.enabled) else "paused",
-            "running": bool(state.get("running", self.enabled)),
+            "status": "paused",
+            "running": False,
             "interval_seconds": float(
                 state.get("interval_seconds", self.interval_seconds)
             ),
@@ -169,12 +174,16 @@ class BuildingSimulationService:
         }
 
     def configure(self, *, running: bool, interval_seconds: float) -> dict[str, Any]:
+        if running:
+            raise ValueError(
+                "Automatic synthetic request generation is disabled; publish scenarios explicitly from the console."
+            )
         state = self.status()
         now = datetime.now(UTC)
         state.update(
             {
-                "running": running,
-                "status": "online" if running else "paused",
+                "running": False,
+                "status": "paused",
                 "interval_seconds": interval_seconds,
                 "next_tick": (now + timedelta(seconds=interval_seconds)).isoformat(),
             }
@@ -182,7 +191,7 @@ class BuildingSimulationService:
         state.pop("scenario_count", None)
         state.pop("scenario_types", None)
         self.repository.set_state(self.STATE_KEY, state)
-        self.events.publish({"type": "simulation.configured", "running": running})
+        self.events.publish({"type": "simulation.configured", "running": False})
         return self.status()
 
     def generate_batch(
@@ -190,7 +199,11 @@ class BuildingSimulationService:
     ) -> list[PubSubMessage]:
         messages: list[PubSubMessage] = []
         for _ in range(count):
-            message = self.tick(force=True, scenario_type=scenario_type)
+            message = self.tick(
+                force=True,
+                scenario_type=scenario_type,
+                source="request_generator_console",
+            )
             if message:
                 messages.append(message)
         return messages
@@ -270,6 +283,7 @@ class BuildingSimulationService:
         now: datetime | None = None,
         force: bool = False,
         scenario_type: str = "all",
+        source: str | None = None,
     ) -> PubSubMessage | None:
         current = now or datetime.now(UTC)
         state = self.status()
@@ -329,7 +343,7 @@ class BuildingSimulationService:
                     "type": scenario["event"],
                     "scenario_type": scenario["scenario_type"],
                     "condition": condition,
-                    "source": scenario.get("source", "synthetic_occupant"),
+                    "source": source or scenario.get("source", "synthetic_occupant"),
                 },
             },
             correlation_id=f"CORR-{ticket_id}",

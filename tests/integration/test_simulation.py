@@ -38,7 +38,8 @@ def test_live_operations_reports_both_engines_and_impact(system):
     live = client.get("/api/operations/live")
     assert live.status_code == 200
     payload = live.json()
-    assert payload["simulation"]["status"] == "online"
+    assert payload["simulation"]["status"] == "paused"
+    assert payload["simulation"]["running"] is False
     assert payload["agent"]["status"] == "online"
     assert payload["agent"]["worker_count"] == 3
     assert payload["agent"]["active_tickets"][0]["ticket_id"] == created.json()["payload"]["ticket_id"]
@@ -82,6 +83,13 @@ def test_generator_controls_cadence_count_and_request_type(system):
     assert controlled.json()["status"] == "paused"
     assert controlled.json()["interval_seconds"] == 90
 
+    rejected = client.post(
+        "/api/simulation/control",
+        json={"running": True, "interval_seconds": 90},
+    )
+    assert rejected.status_code == 409
+    assert "disabled" in rejected.json()["detail"]
+
     generated = client.post(
         "/api/simulation/generate",
         json={"count": 3, "scenario_type": "incident"},
@@ -92,6 +100,10 @@ def test_generator_controls_cadence_count_and_request_type(system):
     assert len({message["message_id"] for message in messages}) == 3
     assert all(
         message["payload"]["scenario"]["scenario_type"] == "incident"
+        for message in messages
+    )
+    assert all(
+        message["payload"]["scenario"]["source"] == "request_generator_console"
         for message in messages
     )
     assert system.simulation.status()["issues_generated"] == 3

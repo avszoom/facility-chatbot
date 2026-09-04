@@ -127,17 +127,20 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
 
     @api.post("/api/simulation/pulse", response_model=PubSubMessage)
     def simulation_pulse():
-        message = runtime.simulation.tick(force=True)
+        message = runtime.simulation.tick(force=True, source="agent_activity_console")
         if message is None:
             raise HTTPException(status_code=409, detail="Building simulation is paused")
         return message
 
     @api.post("/api/simulation/control")
     def simulation_control(request: SimulationControl) -> dict:
-        return runtime.simulation.configure(
-            running=request.running,
-            interval_seconds=request.interval_seconds,
-        )
+        try:
+            return runtime.simulation.configure(
+                running=request.running,
+                interval_seconds=request.interval_seconds,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @api.post("/api/simulation/generate", response_model=list[PubSubMessage])
     def simulation_generate(

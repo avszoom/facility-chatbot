@@ -5,7 +5,14 @@
 - Confirmed from durable message metadata that four unexpected requests came from the `synthetic_occupant` source at the configured 45-second cadence; the user-created request was separately identified as `receptionist_console`.
 - Changed clean-start behavior so automatic synthetic ticket creation is paused until explicitly enabled in Request generator.
 - Kept the Building World independent: all 60 sensors continue advancing and recording history while automatic request generation is paused.
-- Preserved the persisted generator control so operators can deliberately start, stop, and tune continuous scenarios without changing sensor monitoring.
+- Paused the persisted generator state immediately so the current database stopped receiving timed scenarios.
+
+## 2026-09-03 — Console-only request creation
+
+- Hardened the manual-first choice into a backend rule: the Building World process advances telemetry only and never calls the scenario publisher on a timer.
+- Explicit console actions remain available for one custom request, one catalog event, or an intentional multi-request concurrency test.
+- Attempts to enable background generation through the compatibility API now return a conflict instead of silently restarting the timer.
+- Updated Agent Activity and Request generator copy to distinguish continuously live sensors from console-only ticket creation.
 
 ## 2026-09-03 — Live OpenAI reasoning through Strands
 
