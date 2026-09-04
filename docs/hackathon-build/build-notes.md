@@ -1,9 +1,17 @@
 # Build Notes
 
+## 2026-09-04 — Durable coordinator loop
+
+- Replaced within-ticket specialist fan-out with an explicit coordinator loop. Each coordinator invocation chooses one bounded next action: delegate one unfinished specialist, execute a typed decision, request verification, complete a delivered knowledge response, or escalate.
+- Persisted every handoff as its own idempotent workflow job and saved loop iteration, phase, active role, objective, completed specialists, cited sensor IDs, and next job in `WorkflowState`. A restart between specialist calls resumes from that checkpoint without replaying completed roles.
+- Kept parallelism at the ticket level: the configurable worker pool can advance several independent tickets at once, while each ticket retains a single accountable decision path and ordered public history.
+- Added an independent Verification Agent step before the deterministic domain verifier. The agent supplies fresh evidence; only the state machine can close or escalate the ticket.
+- Updated Agent Activity and ticket detail to expose the current coordinator iteration, active role, objective, and persisted step without revealing private reasoning.
+
 ## 2026-09-04 — Coordinated specialist-agent investigation
 
 - Replaced the single generalist model pass with a bounded multi-agent investigation: Intake & Safety, Building Context, Sensor Intelligence, Maintenance Intelligence, and Resident Knowledge agents each receive only their role-specific read context.
-- Relevant specialists run concurrently inside every durable ticket workflow and return typed `SpecialistReport` evidence to an Operations Coordinator agent. The workflow worker pool remains a separate concurrency layer for processing several tickets at once.
+- Relevant specialists return typed `SpecialistReport` evidence to an Operations Coordinator agent. This initial slice used concurrent fan-out and was subsequently refined into the durable sequential coordinator loop documented above.
 - Kept all specialists read-only. The coordinator can propose only an eligible typed action, and the existing deterministic policy gateway, idempotent action layer, and ticket state machine remain the sole authority for mutations and closure.
 - Added public `specialist.completed` audit events and an Agent Activity roster so judges can see genuine collaboration, evidence provenance, provider/model identity, and the distinction between agent roles and worker instances.
 - Preserved the local-to-AWS seam: the same `AgentRuntime` result contract and specialist topology can move from OpenAI Responses locally to Bedrock/AgentCore without changing workflow or UI contracts.

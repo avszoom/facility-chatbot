@@ -7,7 +7,7 @@ from backend.app.domain.models import TicketCreate, TicketStatus
 class FailingAgent(DeterministicAgentRuntime):
     name = "failing-test-double"
 
-    def decide(self, ticket, context):
+    def coordinate(self, ticket, context, reports, iteration):
         raise TimeoutError("model unavailable")
 
 

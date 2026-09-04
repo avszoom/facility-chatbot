@@ -9,7 +9,7 @@ def test_ticket_and_jobs_survive_new_composition_root(system):
 
 def test_duplicate_job_and_event_ids_are_idempotent(system):
     system.tickets.seed_demo()
-    for _ in range(3):
+    for _ in range(20):
         system.workflow.process_due(limit=10)
     first = system.tickets.detail("TKT-1001")
     system.tickets.enqueue_now("TKT-1001", suffix="DUPLICATE")

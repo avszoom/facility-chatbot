@@ -195,6 +195,18 @@ class AgentDecision(Model):
     model_id: str | None = None
 
 
+class CoordinatorDirective(Model):
+    iteration: int = Field(ge=1, le=12)
+    action: Literal["delegate", "execute", "verify", "complete", "escalate"]
+    objective: str
+    rationale: str
+    specialist_role: str | None = None
+    decision: AgentDecision | None = None
+    state_summary: str
+    model_provider: str | None = None
+    model_id: str | None = None
+
+
 class ApprovalRequest(Model):
     approved: bool
     reason: str = Field(default="", max_length=500)

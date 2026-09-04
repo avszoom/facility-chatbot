@@ -8,6 +8,15 @@ from backend.app.domain.models import TicketCreate
 from backend.app.system import build_system
 
 
+def advance_until(system, ticket_id: str, status: str):
+    for _ in range(40):
+        system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=20)
+        ticket = system.repository.get_ticket(ticket_id)
+        if ticket and ticket.status == status:
+            return system.tickets.detail(ticket_id)
+    raise AssertionError(f"{ticket_id} did not reach {status}")
+
+
 def test_building_simulator_emits_durable_tickets_and_conditions(system):
     first_message = system.simulation.tick(force=True)
     second_message = system.simulation.tick(force=True)
@@ -47,7 +56,7 @@ def test_live_operations_reports_both_engines_and_impact(system):
     assert payload["agent"]["active_tickets"][0]["ticket_id"] == created.json()["payload"]["ticket_id"]
     assert payload["messaging"]["delivery"] == "at_least_once"
     assert payload["messaging"]["idempotent_consumers"] is True
-    assert payload["impact"]["actions_performed"] == 0
+    assert payload["impact"]["actions_performed"] == 1
     assert payload["impact"]["autonomy_rate"] == 100
 
 
@@ -208,9 +217,7 @@ def test_floor_five_pantry_odor_correlates_ticket_sensor_and_agent(system):
     assert alarm["state"] == "Critical"
     assert snapshot["active_conditions"][ticket_id]["sensor_id"] == "VOC-05-01"
 
-    for _ in range(3):
-        system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=10)
-    detail = system.tickets.detail(ticket_id)
+    detail = advance_until(system, ticket_id, "waiting_technician")
     assert detail.ticket.status == "waiting_technician"
     assert detail.actions[0].requested["asset_id"] == "VOC-05-01"
     assert detail.actions[0].requested["trade"] == "indoor_air_quality"
@@ -244,10 +251,7 @@ def test_agent_uses_sensor_alarm_and_maintenance_history_without_complaint(syste
             break
     assert message is not None
     ticket_id = str(message.payload["ticket_id"])
-    for _ in range(3):
-        system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=20)
-
-    detail = system.tickets.detail(ticket_id)
+    detail = advance_until(system, ticket_id, "waiting_technician")
     correlated = next(event for event in detail.events if event.event_type == "evidence.correlated")
     decision = next(event for event in detail.events if event.event_type == "agent.decision")
     assert correlated.payload["primary_sensor"]["id"] == "VOC-06-01"
@@ -293,10 +297,7 @@ def test_safety_language_corrects_a_mismatched_console_scenario_and_dispatches(s
     assert system.building.telemetry("PWR-04-01")["numeric_value"] != first_fault_value
     assert system.building.telemetry("VOC-04-01")["state"] == "Warning"
 
-    for _ in range(3):
-        system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=10)
-
-    detail = system.tickets.detail(ticket_id)
+    detail = advance_until(system, ticket_id, "waiting_technician")
     assert detail.ticket.kind == "incident"
     assert detail.ticket.status == "waiting_technician"
     assert detail.work_order and detail.work_order.status == "in_progress"
@@ -309,9 +310,7 @@ def test_safety_language_corrects_a_mismatched_console_scenario_and_dispatches(s
     assert "PWR-04-01" in evidence.summary
     assert "°F" in evidence.summary
 
-    system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=10)
-    system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=10)
-    completed = system.tickets.detail(ticket_id)
+    completed = advance_until(system, ticket_id, "resolved")
     assert completed.ticket.status == "resolved"
     assert completed.work_order and "loose neutral terminal" in completed.work_order.completion_notes
     assert system.building.telemetry("PWR-04-01")["state"] == "Normal"

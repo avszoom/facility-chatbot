@@ -23,8 +23,8 @@ def exercise(case: str, *, restart: bool = False) -> None:
         )
         system = build_system(settings)
         system.tickets.seed_demo()
-        for _ in range(3):
-            system.workflow.process_due(limit=10)
+        for _ in range(20):
+            system.workflow.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=100)
         ids = {"enquiry": "TKT-1001", "service_request": "TKT-1002", "incident": "TKT-1003"}
         ticket_id = ids[case]
         if case == "incident":
@@ -34,7 +34,7 @@ def exercise(case: str, *, restart: bool = False) -> None:
             )
         if restart:
             system = build_system(settings)
-        for _ in range(6):
+        for _ in range(20):
             system.workflow.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=100)
         detail = system.tickets.detail(ticket_id)
         assert detail.ticket.status == TicketStatus.RESOLVED, detail.ticket

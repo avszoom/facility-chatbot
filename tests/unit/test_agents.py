@@ -76,6 +76,48 @@ def test_operational_ticket_delegates_to_sensor_and_maintenance_specialists():
     assert decision.evidence_sensor_ids == ["VOC-05-01"]
 
 
+def test_coordinator_delegates_one_unfinished_specialist_per_iteration():
+    runtime = DeterministicAgentRuntime()
+    request = ticket("Apartment warm", "The living room in my apartment is hot")
+    context = {
+        "phase": "investigation",
+        "building_facts": {"nearby_sensors": []},
+    }
+
+    first = runtime.coordinate(request, context, [], 1)
+    assert first.action == "delegate"
+    assert first.specialist_role == "Intake & Safety Agent"
+
+    first_report = runtime.run_specialist(first.specialist_role, request, context)
+    second = runtime.coordinate(request, context, [first_report], 2)
+    assert second.action == "delegate"
+    assert second.specialist_role == "Building Context Agent"
+    assert second.specialist_role != first.specialist_role
+
+
+def test_coordinator_requires_an_independent_verification_report():
+    runtime = DeterministicAgentRuntime()
+    request = ticket("Apartment warm", "The living room in my apartment is hot")
+    context = {
+        "phase": "verification",
+        "building_facts": {"nearby_sensors": []},
+        "verification_result": {
+            "passed": True,
+            "summary": "TMP-04-01 returned to the normal band.",
+            "readings": {"id": "TMP-04-01", "state": "Normal"},
+        },
+    }
+
+    directive = runtime.coordinate(request, context, [], 6)
+    assert directive.action == "delegate"
+    assert directive.specialist_role == "Verification Agent"
+
+    report = runtime.run_specialist("Verification Agent", request, context)
+    assert report.evidence_sensor_ids == ["TMP-04-01"]
+    verified = runtime.coordinate(request, context, [report], 7)
+    assert verified.action == "verify"
+
+
 def test_strands_runtime_is_a_real_selectable_boundary():
     runtime = StrandsAgentRuntime(Settings(agent_runtime="strands"))
     assert runtime.name == "strands-bedrock"

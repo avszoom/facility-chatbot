@@ -8,7 +8,7 @@ def test_seed_and_enquiry_vertical_slice(system):
     client = TestClient(create_app(system))
     response = client.post("/api/workspace/sample-requests")
     assert response.status_code == 200
-    for _ in range(3):
+    for _ in range(20):
         system.workflow.process_due(limit=10)
     detail = client.get("/api/tickets/TKT-1001").json()
     assert detail["ticket"]["status"] == "resolved"
@@ -31,7 +31,7 @@ def test_staff_can_answer_an_escalated_request_and_close_it(system):
             location_id="BLDG-A-LOBBY",
         )
     )
-    for _ in range(3):
+    for _ in range(20):
         system.workflow.process_due(limit=10)
     assert system.tickets.detail(ticket.ticket_id).ticket.status == "escalated"
 
@@ -80,7 +80,7 @@ def test_building_type_question_is_answered_from_trusted_knowledge(system):
             location_id="BLDG-A-LOBBY",
         )
     )
-    for _ in range(3):
+    for _ in range(20):
         system.workflow.process_due(limit=10)
 
     detail = system.tickets.detail(ticket.ticket_id)

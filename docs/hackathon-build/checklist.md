@@ -71,13 +71,19 @@
   Acceptance: No unsafe action executes; all lifecycle tests pass; model/tool failures preserve recoverable state.
   Verify: `make verify`
 
-- [ ] **11. Deploy the scored AWS slice**
+- [x] **11. Add the durable coordinator loop**
+  Spec ref: `spec.md > Agent Design > Coordinated specialist team`, `spec.md > Data Flow`
+  What to build: One-step coordinator directives, role-scoped specialist jobs, persisted reports and loop checkpoints, restart recovery between handoffs, independent verification, and ticket-level parallelism.
+  Acceptance: No specialist repeats inside one phase; a restart resumes the recorded handoff; several ticket workflows can progress concurrently; only domain rules can mutate systems or close tickets.
+  Verify: `pytest tests/unit/test_agents.py tests/integration/test_workflows.py`
+
+- [ ] **12. Deploy the scored AWS slice**
   Spec ref: `spec.md > AWS Migration`
   What to build: AgentCore Runtime entry point, deployment config, live invocation, CloudWatch/AgentCore observability, and—only if time remains—DynamoDB plus EventBridge/SQS adapters and hosted frontend/API.
   Acceptance: The same agent/tool contract runs in AgentCore and produces a trace visible in AWS; local mode remains functional.
   Verify: `make deploy-agentcore && make verify-agentcore`
 
-- [ ] **12. Prepare Devpost handoff**
+- [ ] **13. Prepare Devpost handoff**
   Spec ref: `prd.md > Submission Proof Points`, `spec.md > Demo And Submission Flow`
   What to build: MIT or Apache license, polished README, architecture diagram, reuse disclosure, setup/testing instructions, screenshots, public demo, five-minute video, builder.aws post, and Devpost draft.
   Acceptance: A clean clone works; all required submission fields and proof points exist; the video shows the live end-to-end product and explicitly names Strands Agents.

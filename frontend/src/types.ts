@@ -196,6 +196,14 @@ export interface LiveOperations {
     active_executions: number;
     queued_tasks: number;
     active_tickets: Ticket[];
+    workflow_states: Record<string, {
+      workflow_id: string;
+      current_step: string;
+      status: "running" | "waiting" | "completed" | "failed";
+      checkpoint: Record<string, unknown>;
+      version: number;
+      updated_at: string;
+    }>;
   };
   messaging: {
     broker: string;

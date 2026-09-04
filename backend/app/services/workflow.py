@@ -7,12 +7,14 @@ from backend.app.agents.ports import AgentRuntime
 from backend.app.domain.models import (
     ActionRecord,
     AgentDecision,
+    CoordinatorDirective,
     MessageDelivery,
     RiskTier,
     Ticket,
     TicketEvent,
     TicketKind,
     TicketStatus,
+    SpecialistReport,
     WorkflowJob,
     WorkflowState,
 )
@@ -152,6 +154,7 @@ class WorkflowService:
         ticket = self.repository.get_ticket(job.ticket_id)
         if not ticket:
             return
+        existing = self.repository.get_workflow_state(ticket.ticket_id)
         if ticket.status == TicketStatus.RESOLVED:
             status = "completed"
         elif ticket.status == TicketStatus.ESCALATED:
@@ -164,16 +167,61 @@ class WorkflowService:
             status = "waiting"
         else:
             status = "running"
+        current_step = str(ticket.status)
+        if existing and status == "running" and existing.current_step.startswith(("coordinator", "specialist")):
+            current_step = existing.current_step
+        checkpoint = dict(existing.checkpoint) if existing else {}
+        checkpoint.update(
+            {
+                "ticket_status": str(ticket.status),
+                "ticket_version": ticket.version,
+                "message_attempt": job.attempts,
+                "waiting_reason": ticket.waiting_reason,
+                "wake_at": ticket.wake_at.isoformat() if ticket.wake_at else None,
+            }
+        )
         self.repository.save_workflow_state(
             WorkflowState(
                 workflow_id=f"WF-{ticket.ticket_id}",
                 ticket_id=ticket.ticket_id,
-                current_step=str(ticket.status),
+                current_step=current_step,
                 status=status,
+                checkpoint=checkpoint,
+                version=ticket.version,
+                updated_at=datetime.now(UTC),
+            )
+        )
+
+    def _save_loop_state(
+        self,
+        ticket: Ticket,
+        *,
+        current_step: str,
+        iteration: int,
+        phase: str,
+        reports: list[SpecialistReport],
+        active_agent: str,
+        objective: str,
+        next_job: str | None,
+    ) -> None:
+        self.repository.save_workflow_state(
+            WorkflowState(
+                workflow_id=f"WF-{ticket.ticket_id}",
+                ticket_id=ticket.ticket_id,
+                current_step=current_step,
+                status="running",
                 checkpoint={
                     "ticket_status": str(ticket.status),
                     "ticket_version": ticket.version,
-                    "message_attempt": job.attempts,
+                    "loop_iteration": iteration,
+                    "phase": phase,
+                    "active_agent": active_agent,
+                    "objective": objective,
+                    "completed_specialists": [report.role for report in reports],
+                    "evidence_sensor_ids": list(dict.fromkeys(
+                        sensor_id for report in reports for sensor_id in report.evidence_sensor_ids
+                    )),
+                    "next_job": next_job,
                     "waiting_reason": ticket.waiting_reason,
                     "wake_at": ticket.wake_at.isoformat() if ticket.wake_at else None,
                 },
@@ -211,15 +259,17 @@ class WorkflowService:
             return
         if job.job_type == "advance":
             self._start_triage(ticket)
-        elif job.job_type == "agent_decide":
-            self._decide(ticket)
+        elif job.job_type in {"agent_decide", "coordinator_step"}:
+            self._coordinate(ticket, job)
+        elif job.job_type == "specialist_step":
+            self._run_specialist(ticket, job)
         elif job.job_type == "execute_decision":
             self._execute_decision(ticket, job)
         elif job.job_type == "dispatch_incident":
             self._dispatch_incident(ticket)
         elif job.job_type == "technician_complete":
             self._complete_technician(ticket)
-        elif job.job_type == "verify":
+        elif job.job_type == "verify":  # legacy jobs from an earlier local build
             self._verify(ticket)
         else:
             raise ValueError(f"Unsupported job type {job.job_type}")
@@ -231,35 +281,56 @@ class WorkflowService:
         self._transition(
             ticket,
             TicketStatus.TRIAGING,
-            waiting="The agent is reading the request and checking operational context.",
+            waiting="The Operations Coordinator is reviewing the request and choosing the first specialist.",
             wake_at=wake,
             persist=False,
         )
         self.repository.save_ticket_and_job(
             ticket,
             WorkflowJob(
-                job_id=f"JOB-{ticket.ticket_id}-AGENT-DECIDE",
+                job_id=f"JOB-{ticket.ticket_id}-COORDINATOR-1",
                 ticket_id=ticket.ticket_id,
-                job_type="agent_decide",
+                job_type="coordinator_step",
+                payload={"iteration": 1, "phase": "investigation", "reports": []},
                 available_at=wake,
             ),
         )
         self._event(
             ticket,
-            "agent.started",
-            "The agent began triage and is reviewing the request, location, policy, and available operational context.",
-            payload={"runtime": self.agent.name, "stage": "analysis"},
+            "coordinator.started",
+            "The Operations Coordinator accepted the ticket and will select one bounded next step at a time.",
+            actor=getattr(self.agent, "coordinator_role", "Operations Coordinator"),
+            payload={"runtime": self.agent.name, "stage": "coordination", "iteration": 1},
             key="AGENT-START",
         )
 
-    def _decide(self, ticket: Ticket) -> None:
-        if ticket.status != TicketStatus.TRIAGING:
-            return
+    def _context(self, ticket: Ticket, phase: str) -> dict[str, Any]:
         knowledge_result = self.knowledge.search(f"{ticket.subject} {ticket.description}")
         building_facts = self.building.investigation_context(ticket)
+        context: dict[str, Any] = {
+            "phase": phase,
+            "eligible_actions": ["answer_enquiry", "inspect_temperature", "investigate_incident", "escalate"],
+            "known_locations": [f"BLDG-A-F{floor:02d}" for floor in range(1, 11)],
+            "knowledge_result": knowledge_result,
+            "building_facts": building_facts,
+        }
+        if phase == "verification":
+            context["expected_outcome"] = "Fresh evidence must confirm the requested outcome before closure."
+            context["verification_result"] = self.building.verify(ticket)
+        if phase == "knowledge_delivery":
+            context["phase_outcome"] = {
+                "authoritative_source": knowledge_result.get("source") if knowledge_result else None,
+                "answer_delivered": any(
+                    event.event_type == "message.sent" and event.event_id.endswith("MESSAGE-ANSWER")
+                    for event in self.repository.list_events(ticket.ticket_id)
+                ),
+            }
+        return context
+
+    def _correlate_once(self, ticket: Ticket, building_facts: dict[str, Any]) -> None:
         primary = building_facts.get("primary_sensor")
-        maintenance = building_facts.get("maintenance_history", [])
         if primary:
+            maintenance = building_facts.get("maintenance_history", [])
             maintenance_note = (
                 f" {len(maintenance)} relevant maintenance record{'s' if len(maintenance) != 1 else ''} matched."
                 if maintenance else " No directly matching maintenance record was found."
@@ -271,33 +342,186 @@ class WorkflowService:
                 payload=building_facts,
                 key="CONTEXT-CORRELATED",
             )
-        context = {
-            "eligible_actions": ["answer_enquiry", "inspect_temperature", "investigate_incident", "escalate"],
-            "known_locations": [f"BLDG-A-F{floor:02d}" for floor in range(1, 11)],
-            "knowledge_result": knowledge_result,
-            "building_facts": building_facts,
-        }
-        decision = self.agent.decide(ticket, context)
+
+    @staticmethod
+    def _reports(job: WorkflowJob) -> list[SpecialistReport]:
+        return [SpecialistReport.model_validate(item) for item in job.payload.get("reports", [])]
+
+    def _coordinate(self, ticket: Ticket, job: WorkflowJob) -> None:
+        if ticket.status not in {TicketStatus.TRIAGING, TicketStatus.WORKING, TicketStatus.WAITING_VERIFICATION}:
+            return
+        phase = str(job.payload.get("phase", "investigation"))
+        iteration = int(job.payload.get("iteration", 1))
+        reports = self._reports(job)
+        context = self._context(ticket, phase)
+        if phase == "investigation":
+            self._correlate_once(ticket, context["building_facts"])
+        directive = self.agent.coordinate(ticket, context, reports, iteration)
+        if directive.action == "delegate" and directive.specialist_role:
+            self._delegate_specialist(ticket, reports, directive, phase)
+            return
+        if directive.action == "execute" and directive.decision:
+            self._accept_decision(ticket, directive.decision, context.get("knowledge_result"), iteration)
+            return
+        if directive.action == "verify" and phase == "verification":
+            self._event(
+                ticket,
+                "coordinator.verification_requested",
+                directive.rationale,
+                actor=getattr(self.agent, "coordinator_role", "Operations Coordinator"),
+                payload=directive.model_dump(mode="json"),
+                key=f"COORDINATOR-{iteration}-VERIFY",
+            )
+            self._verify(ticket)
+            return
+        if directive.action == "complete" and phase == "knowledge_delivery":
+            outcome = context.get("phase_outcome") or {}
+            if not outcome.get("authoritative_source") or not outcome.get("answer_delivered"):
+                raise RuntimeError("Knowledge completion requires an authoritative source and delivered answer")
+            self._event(
+                ticket,
+                "coordinator.completion_requested",
+                directive.rationale,
+                actor=getattr(self.agent, "coordinator_role", "Operations Coordinator"),
+                payload=directive.model_dump(mode="json"),
+                key=f"COORDINATOR-{iteration}-COMPLETE",
+            )
+            self._transition(ticket, TicketStatus.RESOLVED)
+            self._event(
+                ticket,
+                "ticket.resolved",
+                "The authoritative response was delivered and the domain completion check passed.",
+                payload={"source": outcome["authoritative_source"], "autonomous": True},
+                key="RESOLVED",
+            )
+            return
+        self._transition(ticket, TicketStatus.ESCALATED)
+        self._event(
+            ticket,
+            "ticket.escalated",
+            directive.rationale,
+            actor=getattr(self.agent, "coordinator_role", "Operations Coordinator"),
+            payload=directive.model_dump(mode="json"),
+            key=f"COORDINATOR-{iteration}-ESCALATED",
+        )
+
+    def _delegate_specialist(
+        self,
+        ticket: Ticket,
+        reports: list[SpecialistReport],
+        directive: CoordinatorDirective,
+        phase: str,
+    ) -> None:
+        role = str(directive.specialist_role)
+        role_slug = role.upper().replace(" & ", "-").replace(" ", "-")
+        next_job_id = f"JOB-{ticket.ticket_id}-SPECIALIST-{directive.iteration}-{role_slug}"
+        self._event(
+            ticket,
+            "coordinator.delegated",
+            directive.rationale,
+            actor=getattr(self.agent, "coordinator_role", "Operations Coordinator"),
+            payload=directive.model_dump(mode="json"),
+            key=f"COORDINATOR-{directive.iteration}-DELEGATE",
+        )
+        ticket.waiting_reason = f"{role} is working on: {directive.objective}"
+        ticket.updated_at = datetime.now(UTC)
+        ticket.version += 1
+        self.repository.save_ticket_and_job(
+            ticket,
+            WorkflowJob(
+                job_id=next_job_id,
+                ticket_id=ticket.ticket_id,
+                job_type="specialist_step",
+                payload={
+                    "iteration": directive.iteration,
+                    "phase": phase,
+                    "role": role,
+                    "objective": directive.objective,
+                    "reports": [report.model_dump(mode="json") for report in reports],
+                },
+                available_at=datetime.now(UTC),
+            ),
+        )
+        self._save_loop_state(
+            ticket,
+            current_step=f"specialist:{role}",
+            iteration=directive.iteration,
+            phase=phase,
+            reports=reports,
+            active_agent=role,
+            objective=directive.objective,
+            next_job=next_job_id,
+        )
+
+    def _run_specialist(self, ticket: Ticket, job: WorkflowJob) -> None:
+        if ticket.status not in {TicketStatus.TRIAGING, TicketStatus.WORKING, TicketStatus.WAITING_VERIFICATION}:
+            return
+        phase = str(job.payload.get("phase", "investigation"))
+        iteration = int(job.payload.get("iteration", 1))
+        role = str(job.payload["role"])
+        reports = self._reports(job)
+        if role in {report.role for report in reports}:
+            raise RuntimeError(f"Coordinator attempted to repeat completed specialist {role}")
+        context = self._context(ticket, phase)
+        report = self.agent.run_specialist(role, ticket, context)
+        reports.append(report)
+        findings = "; ".join(report.findings[:2]) if report.findings else report.summary
+        self._event(
+            ticket,
+            "specialist.completed",
+            findings,
+            actor=report.role,
+            payload={**report.model_dump(mode="json"), "iteration": iteration, "phase": phase},
+            key=f"SPECIALIST-{iteration}-{role.upper().replace(' & ', '-').replace(' ', '-')}",
+        )
+        next_iteration = iteration + 1
+        next_job_id = f"JOB-{ticket.ticket_id}-COORDINATOR-{phase.upper()}-{next_iteration}"
+        ticket.waiting_reason = f"The Operations Coordinator is reviewing {role}'s evidence."
+        ticket.updated_at = datetime.now(UTC)
+        ticket.version += 1
+        self.repository.save_ticket_and_job(
+            ticket,
+            WorkflowJob(
+                job_id=next_job_id,
+                ticket_id=ticket.ticket_id,
+                job_type="coordinator_step",
+                payload={
+                    "iteration": next_iteration,
+                    "phase": phase,
+                    "reports": [item.model_dump(mode="json") for item in reports],
+                },
+                available_at=datetime.now(UTC),
+            ),
+        )
+        self._save_loop_state(
+            ticket,
+            current_step="coordinator:review",
+            iteration=next_iteration,
+            phase=phase,
+            reports=reports,
+            active_agent=getattr(self.agent, "coordinator_role", "Operations Coordinator"),
+            objective=f"Review {role}'s report and select the next durable step.",
+            next_job=next_job_id,
+        )
+
+    def _accept_decision(
+        self,
+        ticket: Ticket,
+        decision: AgentDecision,
+        knowledge_result: dict[str, Any] | None,
+        iteration: int,
+    ) -> None:
         ticket.kind = decision.kind
         ticket.priority = decision.priority
         ticket.safety_flags = decision.safety_flags
         ticket.confidence = decision.confidence
-        for index, report in enumerate(decision.specialist_reports):
-            findings = "; ".join(report.findings[:2]) if report.findings else report.summary
-            self._event(
-                ticket,
-                "specialist.completed",
-                findings,
-                actor=report.role,
-                payload=report.model_dump(mode="json"),
-                key=f"SPECIALIST-{index + 1}",
-            )
         self._event(
             ticket,
             "agent.decision",
             decision.rationale,
+            actor=getattr(self.agent, "coordinator_role", "Operations Coordinator"),
             payload={**decision.model_dump(mode="json"), "runtime": self.agent.name},
-            key="AGENT-DECISION",
+            key=f"COORDINATOR-{iteration}-DECISION",
         )
         self._event(
             ticket,
@@ -336,11 +560,22 @@ class WorkflowService:
                 payload={
                     "decision": decision.model_dump(mode="json"),
                     "knowledge_result": knowledge_result,
+                    "loop_iteration": iteration,
                 },
                 available_at=wake,
             ),
         )
         self._send_update(ticket, decision.user_update, key="TRIAGE")
+        self._save_loop_state(
+            ticket,
+            current_step=f"action:{decision.selected_action}",
+            iteration=iteration,
+            phase="execution",
+            reports=decision.specialist_reports,
+            active_agent=getattr(self.agent, "coordinator_role", "Operations Coordinator"),
+            objective=decision.objective,
+            next_job=f"JOB-{ticket.ticket_id}-EXECUTE-DECISION",
+        )
 
     def _execute_decision(self, ticket: Ticket, job: WorkflowJob) -> None:
         if ticket.status != TicketStatus.WORKING:
@@ -348,7 +583,12 @@ class WorkflowService:
         decision = AgentDecision.model_validate(job.payload.get("decision", {}))
         selected_action = decision.selected_action
         if selected_action == "answer_enquiry":
-            self._answer_enquiry(ticket, job.payload.get("knowledge_result"))
+            self._answer_enquiry(
+                ticket,
+                job.payload.get("knowledge_result"),
+                int(job.payload.get("loop_iteration", 1)),
+                decision.specialist_reports,
+            )
         elif selected_action == "inspect_temperature":
             self._handle_temperature(ticket, decision)
         elif selected_action == "investigate_incident":
@@ -368,20 +608,86 @@ class WorkflowService:
             key=f"MESSAGE-{key}",
         )
 
-    def _answer_enquiry(self, ticket: Ticket, result: dict[str, str] | None) -> None:
+    def _stored_reports(self, ticket: Ticket) -> list[SpecialistReport]:
+        decision_event = next(
+            (
+                event
+                for event in reversed(self.repository.list_events(ticket.ticket_id))
+                if event.event_type == "agent.decision"
+            ),
+            None,
+        )
+        if not decision_event:
+            return []
+        return [
+            SpecialistReport.model_validate(item)
+            for item in decision_event.payload.get("specialist_reports", [])
+        ]
+
+    def _next_iteration(self, ticket: Ticket) -> int:
+        state = self.repository.get_workflow_state(ticket.ticket_id)
+        current = int(state.checkpoint.get("loop_iteration", 0)) if state else 0
+        return min(12, current + 1)
+
+    def _schedule_coordinator(
+        self,
+        ticket: Ticket,
+        *,
+        phase: str,
+        iteration: int,
+        reports: list[SpecialistReport],
+        available_at: datetime,
+        objective: str,
+    ) -> None:
+        job_id = f"JOB-{ticket.ticket_id}-COORDINATOR-{phase.upper()}-{iteration}"
+        self.repository.save_ticket_and_job(
+            ticket,
+            WorkflowJob(
+                job_id=job_id,
+                ticket_id=ticket.ticket_id,
+                job_type="coordinator_step",
+                payload={
+                    "iteration": iteration,
+                    "phase": phase,
+                    "reports": [report.model_dump(mode="json") for report in reports],
+                },
+                available_at=available_at,
+            ),
+        )
+        self._save_loop_state(
+            ticket,
+            current_step=f"coordinator:{phase}",
+            iteration=iteration,
+            phase=phase,
+            reports=reports,
+            active_agent=getattr(self.agent, "coordinator_role", "Operations Coordinator"),
+            objective=objective,
+            next_job=job_id,
+        )
+
+    def _answer_enquiry(
+        self,
+        ticket: Ticket,
+        result: dict[str, str] | None,
+        iteration: int,
+        reports: list[SpecialistReport],
+    ) -> None:
         if not result:
             self._transition(ticket, TicketStatus.ESCALATED)
             self._event(ticket, "ticket.escalated", "No authoritative building information matched the request.", key="NO-KNOWLEDGE")
             return
         message = f"{result['answer']} Source: {result['source']}."
         self._send_update(ticket, message, key="ANSWER")
-        self._transition(ticket, TicketStatus.RESOLVED)
-        self._event(
+        ticket.waiting_reason = "The Operations Coordinator is confirming delivery before closure."
+        ticket.updated_at = datetime.now(UTC)
+        ticket.version += 1
+        self._schedule_coordinator(
             ticket,
-            "ticket.resolved",
-            "The enquiry was answered from an authoritative building source and closed automatically.",
-            payload={"source": result["source"], "autonomous": True},
-            key="RESOLVED",
+            phase="knowledge_delivery",
+            iteration=iteration + 1,
+            reports=reports,
+            available_at=datetime.now(UTC),
+            objective="Confirm the grounded answer was delivered before closing the ticket.",
         )
 
     def _handle_temperature(self, ticket: Ticket, decision: AgentDecision) -> None:
@@ -432,14 +738,13 @@ class WorkflowService:
             wake_at=wake,
             persist=False,
         )
-        self.repository.save_ticket_and_job(
+        self._schedule_coordinator(
             ticket,
-            WorkflowJob(
-                job_id=f"JOB-{ticket.ticket_id}-VERIFY",
-                ticket_id=ticket.ticket_id,
-                job_type="verify",
-                available_at=wake,
-            )
+            phase="verification",
+            iteration=self._next_iteration(ticket),
+            reports=decision.specialist_reports,
+            available_at=wake,
+            objective="Select independent post-action verification before closure.",
         )
         self._send_update(ticket, "I made a policy-safe temperature adjustment and am verifying the room response before closing the ticket.", key="VERIFY-WAIT")
 
@@ -660,14 +965,13 @@ class WorkflowService:
             wake_at=wake,
             persist=False,
         )
-        self.repository.save_ticket_and_job(
+        self._schedule_coordinator(
             ticket,
-            WorkflowJob(
-                job_id=f"JOB-{ticket.ticket_id}-VERIFY",
-                ticket_id=ticket.ticket_id,
-                job_type="verify",
-                available_at=wake,
-            )
+            phase="verification",
+            iteration=self._next_iteration(ticket),
+            reports=self._stored_reports(ticket),
+            available_at=wake,
+            objective="Review the technician outcome and select independent verification.",
         )
         self._send_update(ticket, "The technician completed the repair. I’m checking the live readings before I close the incident.", key="REPAIR-DONE")
 

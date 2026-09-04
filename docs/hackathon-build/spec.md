@@ -48,12 +48,12 @@ Durable pub/sub topics
   workflow.commands ► operations.workflow subscription
         │ leased at-least-once delivery
         ▼
-Isolated Strands team execution
-  bounded specialists in parallel
-        │ typed evidence reports
+Durable per-ticket coordinator loop
+  Operations Coordinator chooses one next step
+        │ one bounded specialist invocation
         ▼
-Operations Coordinator
-        │ typed decision
+Persist report + checkpoint, then coordinate again
+        │ typed decision after sufficient evidence
         ▼
 Policy gateway
    ├── knowledge tool
@@ -113,10 +113,11 @@ Only the domain service transitions state. The agent returns a proposed `NextDec
 Implements: `prd.md > Epic 2`, `Epic 3`, `Epic 4`, `Epic 5`
 
 Use bounded Strands agents for Intake & Safety, Building Context, Sensor Intelligence,
-Maintenance Intelligence, and Resident Knowledge. Invoke only the relevant roles for a
-ticket and run them concurrently. Each specialist has one read-only, role-scoped context
-tool and returns a typed `SpecialistReport`. An Operations Coordinator receives those
-reports and produces `NextDecision` as structured output:
+Maintenance Intelligence, Resident Knowledge, and Verification. The Operations
+Coordinator selects exactly one eligible unfinished role, that specialist receives one
+read-only role-scoped context tool, and its typed `SpecialistReport` is persisted before
+the coordinator selects the next step. Once enough evidence exists, the coordinator
+produces `NextDecision` as structured output:
 
 - intent and priority
 - safety flags
@@ -131,18 +132,19 @@ This is a controlled team, not an open-ended swarm: specialists cannot delegate,
 mutate systems, or select arbitrary tools. The coordinator proposes one eligible
 action; deterministic policy and domain services retain mutation authority.
 
-Every role can have several isolated executions at the same time. Each team execution
-is scoped to one ticket/workflow correlation ID, and each worker claims only one bounded
-workflow step. `AGENT_WORKER_COUNT` limits ticket concurrency; it does not limit the
-specialists executing inside a claimed workflow. Waiting for a person, technician, or
-verification window persists state and releases the worker.
+Every role can have several isolated executions at the same time across different
+tickets. Within one ticket, only one coordinator or specialist step is active, and each
+step is scoped to that ticket/workflow correlation ID. `AGENT_WORKER_COUNT` limits
+ticket concurrency. Waiting for a person, technician, or verification window persists
+state and releases the worker.
 
 Every message has a stable message ID, correlation ID, and idempotency key. Consumers
 acknowledge only after the bounded workflow step succeeds. Failures use exponential
 backoff and move to a dead-letter state after the configured attempt limit. Ticket
 versions, deterministic event/action IDs, and idempotent tool writes make redelivery
-safe. A versioned `WorkflowState` checkpoint records the last completed step, wait
-reason, wake time, and ticket version for restart recovery and operator visibility.
+safe. A versioned `WorkflowState` checkpoint records the loop iteration, phase, active
+role, completed specialists, evidence IDs, objective, next job, wait reason, wake time,
+and ticket version for restart recovery and operator visibility.
 
 ### Tools
 
@@ -265,8 +267,8 @@ deploy/
 
 1. Building World publishes `building.request.detected` to `building.events`; the Operations intake subscription creates the ticket idempotently. Direct receptionist intake enters through the same ticket service.
 2. Ticket changes and the next deterministic job are persisted together. A relay publishes due outbox jobs to `workflow.commands` with an idempotency key.
-3. A worker leases one `operations.workflow` delivery, loads the current ticket version, computes eligible actions, and concurrently invokes the relevant bounded Strands specialists.
-4. The Operations Coordinator synthesizes typed specialist reports into one structured decision. Evidence references are validated; writes pass through policy and idempotency checks.
+3. A worker leases one `operations.workflow` delivery and invokes the Operations Coordinator with the saved ticket state and reports. The coordinator chooses exactly one next step: delegate one unfinished specialist, execute, verify, complete, or escalate.
+4. A delegated specialist runs as its own durable job. Its typed report is appended to the checkpoint, then another coordinator job is published. Once sufficient evidence exists, evidence references are validated and writes pass through policy and idempotency checks.
 5. On success the consumer saves a versioned workflow checkpoint and acknowledges the message. On failure it retries with backoff; exhaustion dead-letters and safely escalates the ticket.
 6. SSE announces the update; the browser refetches canonical state.
 7. Waiting tickets have no open model invocation or web request. A persisted future outbox job resumes them.
@@ -296,7 +298,7 @@ same ticket without duplicate actions.
 
 ### Agent execution
 
-Package the same bounded Strands specialist/coordinator topology behind the AgentCore Runtime HTTP contract and deploy it with the AgentCore CLI. Keep ticket state outside model sessions.
+Package the same durable Strands coordinator/specialist loop behind the AgentCore Runtime HTTP contract and deploy it with the AgentCore CLI. Keep ticket state outside model sessions.
 
 ### Persistence and scheduling
 

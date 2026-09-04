@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from backend.app.domain.models import AgentDecision, Ticket
+from backend.app.domain.models import AgentDecision, CoordinatorDirective, SpecialistReport, Ticket
 
 
 class AgentRuntime(Protocol):
@@ -15,4 +15,14 @@ class AgentRuntime(Protocol):
     coordinator_role: str
     specialist_roles: tuple[str, ...]
 
+    def coordinate(
+        self,
+        ticket: Ticket,
+        context: dict[str, Any],
+        reports: list[SpecialistReport],
+        iteration: int,
+    ) -> CoordinatorDirective: ...
+    def run_specialist(
+        self, role: str, ticket: Ticket, context: dict[str, Any]
+    ) -> SpecialistReport: ...
     def decide(self, ticket: Ticket, context: dict[str, Any]) -> AgentDecision: ...

@@ -89,6 +89,12 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
                     for ticket in tickets
                     if ticket.status not in {"resolved", "escalated"}
                 ],
+                "workflow_states": {
+                    ticket.ticket_id: state.model_dump(mode="json")
+                    for ticket in tickets
+                    if ticket.status not in {"resolved", "escalated"}
+                    if (state := runtime.repository.get_workflow_state(ticket.ticket_id)) is not None
+                },
             },
             "messaging": {
                 "broker": runtime.message_bus.name,
@@ -101,6 +107,10 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
                 "actions_performed": sum(
                     event["event_type"]
                     in {
+                        "coordinator.started",
+                        "coordinator.delegated",
+                        "coordinator.verification_requested",
+                        "coordinator.completion_requested",
                         "agent.decision",
                         "specialist.completed",
                         "agent.tools_completed",

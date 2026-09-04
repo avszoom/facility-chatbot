@@ -5,7 +5,7 @@ The domain models, state machine, policy rules, action gateway, ticket service, 
 | Capability | Local implementation | AWS replacement | Contract preserved |
 | --- | --- | --- | --- |
 | Building-world event generation | Durable `BuildingSimulationService` + independent simulator process | EventBridge Scheduler + Lambda, IoT Core rules, or a synthetic test-event producer | simulation state + ticket intake boundary |
-| Agent reasoning | Concurrent bounded Strands specialists + Operations Coordinator using OpenAI Responses API (`OpenAIStrandsRuntime`) | The same specialist/coordinator topology in Bedrock AgentCore Runtime with a Bedrock model adapter | `AgentRuntime.decide → AgentDecision` and typed `SpecialistReport` evidence |
+| Agent reasoning | Durable Operations Coordinator loop + one bounded Strands specialist per handoff using OpenAI Responses API (`OpenAIStrandsRuntime`) | The same coordinator/specialist loop in Bedrock AgentCore Runtime with a Bedrock model adapter | `AgentRuntime.coordinate`, `run_specialist`, `CoordinatorDirective`, and typed `SpecialistReport` evidence |
 | Durable tickets/audit | SQLite WAL tables | DynamoDB single table + conditional writes | `OperationsRepository` |
 | Cross-service pub/sub | SQLite message and subscription-delivery tables with at-least-once delivery | EventBridge custom bus or SNS topics fan-out to SQS subscriptions | `MessageBusPort` + stable message envelope |
 | Delayed/resumable jobs | Transactional SQLite workflow outbox + per-request technician duration + configurable subscriber worker pool | EventBridge Scheduler → EventBridge/SQS/Lambda | `WorkflowJob` + `WorkflowService` |
@@ -24,7 +24,7 @@ The domain models, state machine, policy rules, action gateway, ticket service, 
 
 ## Migration order
 
-1. Package the same Strands specialist/coordinator loop for AgentCore, switch the model adapter from OpenAI Responses to Bedrock, and prove typed specialist reports, coordinator decision, and trace.
+1. Package the same durable Strands coordinator/specialist loop for AgentCore, switch the model adapter from OpenAI Responses to Bedrock, and prove typed directives, specialist reports, saved checkpoints, and trace.
 2. Replace `SQLiteDurablePubSub` with EventBridge/SNS plus SQS subscriptions while retaining SQLite ticket persistence for a controlled split test.
 3. Move building-world scheduling to EventBridge Scheduler and feed simulated or real IoT events through the same ticket-intake boundary.
 4. Move persistence to DynamoDB and run the same lifecycle/idempotency tests.

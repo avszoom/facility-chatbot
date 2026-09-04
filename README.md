@@ -27,9 +27,11 @@ OPENAI_STORE=false
 The key is read only by the Operations service and is never returned by an API,
 written to an event, or bundled into the browser. Each ticket invokes a bounded
 specialist team through Strands: Intake & Safety, Building Context, Sensor
-Intelligence, Maintenance Intelligence, and (when relevant) Resident Knowledge.
-Relevant specialists execute concurrently and provide typed evidence reports to an
-Operations Coordinator agent. The coordinator proposes one action; the deterministic
+Intelligence, Maintenance Intelligence, Resident Knowledge, and independent Verification.
+An Operations Coordinator chooses exactly one relevant specialist at a time. Each typed
+report is persisted before the coordinator is invoked again, so the ticket follows an
+auditable coordinator → specialist → checkpoint loop rather than an in-memory swarm.
+The coordinator eventually proposes one action; the deterministic
 state machine and policy gateway alone authorize and execute it. The Strands agents
 use OpenAI's Responses API locally, while `AGENT_RUNTIME=bedrock` plus AWS credentials
 selects the AWS model path. Agent Activity shows the roster, runtime, provider, model,
@@ -40,8 +42,9 @@ and one public completion event for every specialist report.
 Building World and Operations communicate only through a SQLite-backed durable
 pub/sub adapter. The local broker provides at-least-once delivery, leased consumers,
 exponential retry, a dead-letter state, and idempotent message publication. Every
-ticket also has a saved `WF-*` checkpoint, so a worker restart resumes the current
-step instead of starting the ticket over.
+ticket also has a saved `WF-*` checkpoint containing the loop iteration, phase,
+active role, completed roles, evidence IDs, objective, and next job, so a worker restart
+resumes the current handoff instead of starting the ticket over.
 
 The Building World owns a 60-device digital twin of **Northstar Residences**, a
 ten-story, 132-apartment tower. Floors 3–9 contain apartments, Floor 10 contains
@@ -103,8 +106,8 @@ make run-ui
 ```
 
 Set `AGENT_WORKER_COUNT` to control how many independent ticket workflows can execute
-concurrently. The local default is `3`; this worker count is separate from the
-specialist agents collaborating inside each workflow. Reliability controls are
+concurrently. The local default is `3`; each worker advances only one bounded step for
+one ticket, while each ticket has only one active specialist handoff at a time. Reliability controls are
 `MESSAGE_MAX_ATTEMPTS`, `MESSAGE_RETRY_BASE_SECONDS`, and `MESSAGE_LEASE_SECONDS`.
 
 ## Scenario walkthrough
