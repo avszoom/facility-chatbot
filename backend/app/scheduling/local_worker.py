@@ -7,7 +7,7 @@ from backend.app.system import ApplicationSystem, build_system
 
 
 class SQLiteLeasedJobWorker:
-    """Polling worker whose service can later be invoked from SQS/Lambda."""
+    """Consumes durable pub/sub deliveries; SQS/Lambda can replace this adapter."""
 
     def __init__(self, system: ApplicationSystem):
         self.system = system
@@ -16,7 +16,7 @@ class SQLiteLeasedJobWorker:
     def run_once(self) -> int:
         # Claim one bounded step at a time so several worker processes distribute
         # independent ticket workflows instead of one process draining the queue.
-        return self.system.workflow.process_due(limit=1)
+        return self.system.operations.process_due(limit=1)
 
     def run_forever(self) -> None:
         while not self.stopped.wait(self.system.settings.worker_poll_seconds):

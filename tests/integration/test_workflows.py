@@ -49,6 +49,10 @@ def test_new_request_exposes_each_live_agent_phase(system):
         "message.sent",
         "ticket.resolved",
     ]
+    assert detail.workflow
+    assert detail.workflow.workflow_id == f"WF-{ticket.ticket_id}"
+    assert detail.workflow.status == "completed"
+    assert detail.workflow.current_step == "resolved"
 
 
 def test_service_request_closes_only_after_verification(system):

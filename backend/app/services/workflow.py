@@ -6,13 +6,16 @@ from typing import Any
 from backend.app.agents.ports import AgentRuntime
 from backend.app.domain.models import (
     ActionRecord,
+    MessageDelivery,
     RiskTier,
     Ticket,
     TicketEvent,
     TicketKind,
     TicketStatus,
     WorkflowJob,
+    WorkflowState,
 )
+from backend.app.messaging.ports import MessageBusPort
 from backend.app.domain.policies import ActionPolicy
 from backend.app.domain.state_machine import assert_transition
 from backend.app.repositories.ports import OperationsRepository
@@ -33,6 +36,7 @@ class WorkflowService:
         notifications: NotificationPort,
         work_orders: WorkOrderPort,
         events: LocalEventBus,
+        message_bus: MessageBusPort,
         *,
         agent_analysis_seconds: float = 2.2,
         action_delay_seconds: float = 1.6,
@@ -46,6 +50,7 @@ class WorkflowService:
         self.notifications = notifications
         self.work_orders = work_orders
         self.events = events
+        self.message_bus = message_bus
         self.policy = ActionPolicy()
         self.actions = ActionGateway(repository, self.policy)
         self.agent_analysis_seconds = agent_analysis_seconds
@@ -100,34 +105,104 @@ class WorkflowService:
 
     def process_due(self, *, now: datetime | None = None, limit: int = 10) -> int:
         current = now or datetime.now(UTC)
-        jobs = self.repository.claim_due_jobs(current, limit)
+        self._publish_due_commands(current, limit)
+        deliveries = self.message_bus.pull(
+            "operations.workflow", now=current, limit=limit
+        )
         processed = 0
-        for job in jobs:
+        for delivery in deliveries:
+            job: WorkflowJob | None = None
             try:
+                job = WorkflowJob.model_validate(delivery.message.payload["job"])
+                job.attempts = delivery.attempts
                 self._dispatch(job)
-                self.repository.complete_job(job.job_id)
+                self._checkpoint(job)
+                self.message_bus.acknowledge(delivery)
                 processed += 1
             except Exception as exc:
+                if self.message_bus.reject(delivery, exc, now=current) and job:
+                    self._dead_letter(delivery, job, exc)
+        return processed
+
+    def _publish_due_commands(self, current: datetime, limit: int) -> None:
+        jobs = self.repository.claim_due_jobs(current, limit)
+        for job in jobs:
+            try:
+                self.message_bus.publish(
+                    topic="workflow.commands",
+                    message_type=job.job_type,
+                    payload={"job": job.model_dump(mode="json")},
+                    correlation_id=f"CORR-{job.ticket_id}",
+                    idempotency_key=job.job_id,
+                    message_id=f"MSG-{job.job_id}",
+                    available_at=current,
+                )
+                self.repository.complete_job(job.job_id)
+            except Exception as exc:
                 if job.attempts >= 3:
-                    ticket = self.repository.get_ticket(job.ticket_id)
-                    if ticket and ticket.status not in {TicketStatus.RESOLVED, TicketStatus.ESCALATED}:
-                        if ticket.status == TicketStatus.NEW:
-                            self._transition(ticket, TicketStatus.TRIAGING)
-                        self._transition(ticket, TicketStatus.ESCALATED)
-                        self._event(
-                            ticket,
-                            "workflow.escalated",
-                            f"The workflow stopped safely after {job.attempts} attempts: {exc}",
-                            payload={"job_id": job.job_id, "error": str(exc)},
-                            key=f"{job.job_id}-FAILED",
-                        )
                     self.repository.complete_job(job.job_id)
                 else:
                     delay = min(30, 2 ** job.attempts)
                     self.repository.retry_job(
                         job.job_id, str(exc), datetime.now(UTC) + timedelta(seconds=delay)
                     )
-        return processed
+
+    def _checkpoint(self, job: WorkflowJob) -> None:
+        ticket = self.repository.get_ticket(job.ticket_id)
+        if not ticket:
+            return
+        if ticket.status == TicketStatus.RESOLVED:
+            status = "completed"
+        elif ticket.status == TicketStatus.ESCALATED:
+            status = "failed"
+        elif ticket.status in {
+            TicketStatus.NEEDS_APPROVAL,
+            TicketStatus.WAITING_TECHNICIAN,
+            TicketStatus.WAITING_VERIFICATION,
+        }:
+            status = "waiting"
+        else:
+            status = "running"
+        self.repository.save_workflow_state(
+            WorkflowState(
+                workflow_id=f"WF-{ticket.ticket_id}",
+                ticket_id=ticket.ticket_id,
+                current_step=str(ticket.status),
+                status=status,
+                checkpoint={
+                    "ticket_status": str(ticket.status),
+                    "ticket_version": ticket.version,
+                    "message_attempt": job.attempts,
+                    "waiting_reason": ticket.waiting_reason,
+                    "wake_at": ticket.wake_at.isoformat() if ticket.wake_at else None,
+                },
+                version=ticket.version,
+                updated_at=datetime.now(UTC),
+            )
+        )
+
+    def _dead_letter(
+        self, delivery: MessageDelivery, job: WorkflowJob, error: Exception
+    ) -> None:
+        ticket = self.repository.get_ticket(job.ticket_id)
+        if not ticket or ticket.status in {TicketStatus.RESOLVED, TicketStatus.ESCALATED}:
+            return
+        if ticket.status == TicketStatus.NEW:
+            self._transition(ticket, TicketStatus.TRIAGING)
+        self._transition(ticket, TicketStatus.ESCALATED)
+        self._event(
+            ticket,
+            "workflow.dead_lettered",
+            f"The workflow stopped safely after {delivery.attempts} delivery attempts: {error}",
+            payload={
+                "message_id": delivery.message.message_id,
+                "job_id": job.job_id,
+                "subscription": delivery.subscription,
+                "error": str(error),
+            },
+            key=f"{job.job_id}-DEAD-LETTER",
+        )
+        self._checkpoint(job)
 
     def _dispatch(self, job: WorkflowJob) -> None:
         ticket = self.repository.get_ticket(job.ticket_id)

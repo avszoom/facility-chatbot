@@ -16,7 +16,7 @@ export const api = {
   ticket: (id: string) => request<TicketDetail>(`/api/tickets/${id}`),
   metrics: () => request<Metrics>("/api/metrics"),
   live: () => request<LiveOperations>("/api/operations/live"),
-  simulationPulse: () => request<Ticket>("/api/simulation/pulse", { method: "POST" }),
+  simulationPulse: () => request<{ message_id: string }>("/api/simulation/pulse", { method: "POST" }),
   loadSampleRequests: () => request<Ticket[]>("/api/workspace/sample-requests", { method: "POST" }),
   create: (payload: { subject: string; description: string; requester: string; location_id: string }) =>
     request<Ticket>("/api/tickets", { method: "POST", body: JSON.stringify(payload) }),

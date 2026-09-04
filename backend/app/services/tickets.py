@@ -11,6 +11,7 @@ from backend.app.domain.models import (
     TicketEvent,
     TicketStatus,
     WorkflowJob,
+    WorkflowState,
 )
 from backend.app.domain.state_machine import assert_transition
 from backend.app.repositories.ports import OperationsRepository
@@ -35,6 +36,10 @@ class TicketService:
             self.events.publish({"type": "ticket.updated", "ticket_id": event.ticket_id})
 
     def create(self, request: TicketCreate, *, ticket_id: str | None = None) -> Ticket:
+        if ticket_id:
+            existing = self.repository.get_ticket(ticket_id)
+            if existing:
+                return existing
         now = datetime.now(UTC)
         ticket = Ticket(
             ticket_id=ticket_id or f"TKT-{uuid4().hex[:6].upper()}",
@@ -57,6 +62,17 @@ class TicketService:
                 job_type="advance",
                 available_at=now + timedelta(seconds=self.intake_delay_seconds),
             ),
+        )
+        self.repository.save_workflow_state(
+            WorkflowState(
+                workflow_id=f"WF-{ticket.ticket_id}",
+                ticket_id=ticket.ticket_id,
+                current_step=str(ticket.status),
+                status="running",
+                checkpoint={"ticket_status": str(ticket.status), "next": "triage"},
+                version=ticket.version,
+                updated_at=now,
+            )
         )
         self._append(
             TicketEvent(
@@ -84,6 +100,7 @@ class TicketService:
             events=self.repository.list_events(ticket_id),
             actions=self.repository.list_actions(ticket_id),
             work_order=self.repository.get_work_order_for_ticket(ticket_id),
+            workflow=self.repository.get_workflow_state(ticket_id),
         )
 
     def seed_demo(self) -> list[Ticket]:
@@ -185,4 +202,19 @@ class TicketService:
                     available_at=now,
                 )
             )
+        self.repository.save_workflow_state(
+            WorkflowState(
+                workflow_id=f"WF-{ticket.ticket_id}",
+                ticket_id=ticket.ticket_id,
+                current_step=str(ticket.status),
+                status="running" if request.approved else "failed",
+                checkpoint={
+                    "ticket_status": str(ticket.status),
+                    "approved": request.approved,
+                    "next": "dispatch_incident" if request.approved else None,
+                },
+                version=ticket.version,
+                updated_at=now,
+            )
+        )
         return ticket

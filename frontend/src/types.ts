@@ -23,6 +23,7 @@ export interface Ticket {
   waiting_reason: string | null;
   wake_at: string | null;
   updated_at: string;
+  version: number;
 }
 
 export interface Metrics {
@@ -73,6 +74,14 @@ export interface TicketDetail {
   events: TicketEvent[];
   actions: ActionRecord[];
   work_order: WorkOrder | null;
+  workflow: {
+    workflow_id: string;
+    current_step: string;
+    status: "running" | "waiting" | "completed" | "failed";
+    checkpoint: Record<string, unknown>;
+    version: number;
+    updated_at: string;
+  } | null;
 }
 
 export interface LiveOperations {
@@ -99,6 +108,17 @@ export interface LiveOperations {
     active_executions: number;
     queued_tasks: number;
     active_tickets: Ticket[];
+  };
+  messaging: {
+    broker: string;
+    topics: number;
+    pending: number;
+    processing: number;
+    completed: number;
+    retrying: number;
+    dead_letters: number;
+    delivery: "at_least_once";
+    idempotent_consumers: boolean;
   };
   recent_events: TicketEvent[];
   impact: {

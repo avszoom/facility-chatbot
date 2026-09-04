@@ -1,8 +1,9 @@
-"""AWS scheduling seam.
+"""AWS scheduling and pub/sub seam.
 
-The AWS slice will translate an EventBridge/SQS message into a WorkflowJob and call
-WorkflowService._dispatch through a public message handler. Business rules remain
-inside WorkflowService; leasing, retries, and dead-letter handling move to AWS.
+The AWS adapter will publish the same message envelope through EventBridge or SNS and
+consume it from SQS/Lambda. EventBridge Scheduler supplies future wake-ups; SQS owns
+visibility leases, retry, and dead-letter redrive. Business rules and idempotency stay
+inside the existing workflow handlers.
 """
 
 

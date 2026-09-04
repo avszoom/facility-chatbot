@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import uuid4
 
-from backend.app.domain.models import Ticket, TicketCreate
+from backend.app.domain.models import PubSubMessage, TicketCreate
+from backend.app.messaging.ports import MessageBusPort
 from backend.app.repositories.ports import OperationsRepository
 from backend.app.services.events import LocalEventBus
 from backend.app.services.tickets import TicketService
@@ -106,6 +108,7 @@ class BuildingSimulationService:
         tickets: TicketService,
         building: BuildingPort,
         events: LocalEventBus,
+        message_bus: MessageBusPort,
         *,
         enabled: bool = True,
         interval_seconds: float = 45.0,
@@ -114,6 +117,7 @@ class BuildingSimulationService:
         self.tickets = tickets
         self.building = building
         self.events = events
+        self.message_bus = message_bus
         self.enabled = enabled
         self.interval_seconds = interval_seconds
         if self.repository.get_state(self.STATE_KEY) is None:
@@ -141,7 +145,9 @@ class BuildingSimulationService:
             "scenario_count": len(SCENARIOS),
         }
 
-    def tick(self, *, now: datetime | None = None, force: bool = False) -> Ticket | None:
+    def tick(
+        self, *, now: datetime | None = None, force: bool = False
+    ) -> PubSubMessage | None:
         current = now or datetime.now(UTC)
         state = self.status()
         if not self.enabled and not force:
@@ -169,13 +175,28 @@ class BuildingSimulationService:
             return None
         scenario_index, scenario = candidates[0]
         condition = self.building.inject_simulated_condition(str(scenario["condition"]))
-        ticket = self.tickets.create(
-            TicketCreate(
-                subject=str(scenario["subject"]),
-                description=str(scenario["description"]),
-                requester=str(scenario["requester"]),
-                location_id=str(scenario["location_id"]),
-            )
+        request = TicketCreate(
+            subject=str(scenario["subject"]),
+            description=str(scenario["description"]),
+            requester=str(scenario["requester"]),
+            location_id=str(scenario["location_id"]),
+        )
+        ticket_id = f"TKT-{uuid4().hex[:6].upper()}"
+        message = self.message_bus.publish(
+            topic="building.events",
+            message_type="building.request.detected",
+            payload={
+                "ticket_id": ticket_id,
+                "request": request.model_dump(mode="json"),
+                "scenario": {
+                    "type": scenario["event"],
+                    "condition": condition,
+                },
+            },
+            correlation_id=f"CORR-{ticket_id}",
+            idempotency_key=f"BUILDING-EVENT-{ticket_id}",
+            message_id=f"MSG-BUILDING-{ticket_id}",
+            available_at=current,
         )
         next_at = current + timedelta(seconds=self.interval_seconds)
         next_state = {
@@ -187,12 +208,13 @@ class BuildingSimulationService:
             "next_tick": next_at.isoformat(),
             "last_event": {
                 "type": scenario["event"],
-                "ticket_id": ticket.ticket_id,
-                "subject": ticket.subject,
-                "location_id": ticket.location_id,
+                "message_id": message.message_id,
+                "ticket_id": ticket_id,
+                "subject": request.subject,
+                "location_id": request.location_id,
                 "condition": condition,
             },
         }
         self.repository.set_state(self.STATE_KEY, next_state)
-        self.events.publish({"type": "simulation.generated", "ticket_id": ticket.ticket_id})
-        return ticket
+        self.events.publish({"type": "simulation.generated", "ticket_id": ticket_id})
+        return message

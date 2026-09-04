@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from backend.app.domain.models import ApprovalRequest, Ticket, TicketCreate, TicketDetail
+from backend.app.domain.models import ApprovalRequest, PubSubMessage, Ticket, TicketCreate, TicketDetail
 from backend.app.system import ApplicationSystem, build_system
 
 
@@ -48,6 +48,7 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
         tickets = runtime.tickets.list()
         dashboard = runtime.repository.metrics()
         jobs = runtime.repository.list_jobs()
+        messaging = runtime.message_bus.stats()
         all_events = [
             event.model_dump(mode="json")
             for ticket in tickets
@@ -64,13 +65,20 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
                 "status": "online",
                 "runtime": runtime.agent.name,
                 "worker_count": runtime.settings.agent_worker_count,
-                "active_executions": sum(job.status == "processing" for job in jobs),
-                "queued_tasks": sum(job.status == "pending" for job in jobs),
+                "active_executions": messaging["processing"],
+                "queued_tasks": sum(job.status == "pending" for job in jobs)
+                + messaging["pending"],
                 "active_tickets": [
                     ticket.model_dump(mode="json")
                     for ticket in tickets
                     if ticket.status not in {"resolved", "escalated"}
                 ],
+            },
+            "messaging": {
+                "broker": runtime.message_bus.name,
+                **messaging,
+                "delivery": "at_least_once",
+                "idempotent_consumers": True,
             },
             "recent_events": recent_events,
             "impact": {
@@ -103,12 +111,12 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
             },
         }
 
-    @api.post("/api/simulation/pulse", response_model=Ticket)
+    @api.post("/api/simulation/pulse", response_model=PubSubMessage)
     def simulation_pulse():
-        ticket = runtime.simulation.tick(force=True)
-        if ticket is None:
+        message = runtime.simulation.tick(force=True)
+        if message is None:
             raise HTTPException(status_code=409, detail="Building simulation is paused")
-        return ticket
+        return message
 
     @api.get("/api/tickets", response_model=list[Ticket])
     def list_tickets():
@@ -131,7 +139,7 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
             ticket = runtime.tickets.enqueue_now(ticket_id)
         except KeyError:
             raise missing(ticket_id) from None
-        runtime.workflow.process_due()
+        runtime.operations.process_due()
         return runtime.repository.get_ticket(ticket.ticket_id)
 
     @api.post("/api/tickets/{ticket_id}/approval", response_model=Ticket)
@@ -142,7 +150,7 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
             raise missing(ticket_id) from None
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        runtime.workflow.process_due()
+        runtime.operations.process_due()
         return runtime.repository.get_ticket(ticket.ticket_id)
 
     @api.post("/api/workspace/sample-requests", response_model=list[Ticket])
@@ -154,7 +162,9 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
     @api.post("/api/workspace/process-scheduled")
     @api.post("/api/demo/advance", include_in_schema=False)
     def process_scheduled(seconds: float = Query(default=60, ge=0, le=3600)) -> dict:
-        processed = runtime.workflow.process_due(now=datetime.now(UTC) + timedelta(seconds=seconds), limit=100)
+        processed = runtime.operations.process_due(
+            now=datetime.now(UTC) + timedelta(seconds=seconds), limit=100
+        )
         return {"processed": processed, "tickets": runtime.tickets.list()}
 
     @api.post("/api/workspace/verification-failure/{ticket_id}")

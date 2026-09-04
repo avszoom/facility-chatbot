@@ -98,6 +98,37 @@ class WorkflowJob(Model):
     last_error: str | None = None
 
 
+class PubSubMessage(Model):
+    message_id: str
+    topic: str
+    message_type: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    correlation_id: str
+    idempotency_key: str
+    published_at: datetime
+    available_at: datetime
+
+
+class MessageDelivery(Model):
+    subscription: str
+    message: PubSubMessage
+    status: Literal["pending", "processing", "completed", "dead_letter"] = "pending"
+    attempts: int = 0
+    lease_until: datetime | None = None
+    next_attempt_at: datetime
+    last_error: str | None = None
+
+
+class WorkflowState(Model):
+    workflow_id: str
+    ticket_id: str
+    current_step: str
+    status: Literal["running", "waiting", "completed", "failed"]
+    checkpoint: dict[str, Any] = Field(default_factory=dict)
+    version: int
+    updated_at: datetime
+
+
 class ActionRecord(Model):
     action_id: str
     ticket_id: str
@@ -156,6 +187,7 @@ class TicketDetail(Model):
     events: list[TicketEvent]
     actions: list[ActionRecord]
     work_order: WorkOrder | None = None
+    workflow: WorkflowState | None = None
 
 
 class DashboardMetrics(Model):

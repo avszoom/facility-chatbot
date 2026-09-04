@@ -74,3 +74,12 @@
 - Grouped local execution into three service boundaries: Operations (API plus configurable three-worker pool), Building World, and Web UI. Multiple workers claim one bounded job each, allowing independent tickets to progress concurrently.
 - Expanded the building activity catalog from six to ten varied scenarios, added grounded operational knowledge, and suppressed recently repeated subjects.
 - Verification: 17 Python tests, 2 frontend test files, the production UI build, all three lifecycle checks, the safety decision evaluation, and the secret scan passed. The combined three-service launcher reported Building World online, Operations online, and three configured workers.
+
+## 2026-09-03 — Durable pub/sub and workflow recovery
+
+- The participant strengthened the service boundary: Building World and Operations must communicate through pub/sub, with retry, idempotency, and saved workflow state.
+- Added SQLite-backed durable topics and per-subscription deliveries with leases, at-least-once semantics, exponential backoff, configurable attempt limits, acknowledgements, and a terminal dead-letter state.
+- Building World now publishes `building.request.detected`; the Operations intake consumer materializes the ticket idempotently. Due workflow outbox jobs publish to `workflow.commands`, which the worker pool consumes independently.
+- Added a versioned `WF-*` checkpoint for each ticket recording current step, ticket version, wait reason, wake time, attempt, and terminal outcome. Redelivery remains safe through stable message/job/event/action identifiers and status guards.
+- Updated Agent Activity to expose the message broker, queued deliveries, retries, dead letters, acknowledgement count, and checkpoint version.
+- Verification: 20 Python tests, 2 frontend tests, production UI build, all three lifecycle checks, a real three-process pub/sub run, and the source secret scan passed.

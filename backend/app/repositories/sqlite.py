@@ -10,10 +10,13 @@ from typing import Any, Iterator
 from backend.app.domain.models import (
     ActionRecord,
     DashboardMetrics,
+    MessageDelivery,
+    PubSubMessage,
     Ticket,
     TicketEvent,
     TicketStatus,
     WorkflowJob,
+    WorkflowState,
     WorkOrder,
 )
 
@@ -75,6 +78,44 @@ CREATE TABLE IF NOT EXISTS app_state (
     key TEXT PRIMARY KEY,
     body TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS pubsub_messages (
+    message_id TEXT PRIMARY KEY,
+    topic TEXT NOT NULL,
+    message_type TEXT NOT NULL,
+    correlation_id TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL UNIQUE,
+    published_at TEXT NOT NULL,
+    available_at TEXT NOT NULL,
+    body TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pubsub_deliveries (
+    message_id TEXT NOT NULL,
+    subscription TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    lease_until TEXT,
+    next_attempt_at TEXT NOT NULL,
+    last_error TEXT,
+    completed_at TEXT,
+    PRIMARY KEY(message_id, subscription),
+    FOREIGN KEY(message_id) REFERENCES pubsub_messages(message_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_pubsub_due
+ON pubsub_deliveries(subscription, status, next_attempt_at);
+
+CREATE TABLE IF NOT EXISTS workflow_states (
+    ticket_id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL UNIQUE,
+    current_step TEXT NOT NULL,
+    status TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    updated_at TEXT NOT NULL,
+    body TEXT NOT NULL,
+    FOREIGN KEY(ticket_id) REFERENCES tickets(ticket_id) ON DELETE CASCADE
+);
 """
 
 
@@ -115,7 +156,17 @@ class SQLiteOperationsRepository:
     def reset(self) -> None:
         with self.connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            for table in ("ticket_events", "workflow_jobs", "actions", "work_orders", "tickets", "app_state"):
+            for table in (
+                "pubsub_deliveries",
+                "pubsub_messages",
+                "ticket_events",
+                "workflow_jobs",
+                "actions",
+                "work_orders",
+                "workflow_states",
+                "tickets",
+                "app_state",
+            ):
                 connection.execute(f"DELETE FROM {table}")
             connection.commit()
 
@@ -310,6 +361,169 @@ class SQLiteOperationsRepository:
             )
             for row in rows
         ]
+
+    def publish_message(self, message: PubSubMessage, subscriptions: list[str]) -> bool:
+        with self.connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            cursor = connection.execute(
+                """INSERT OR IGNORE INTO pubsub_messages
+                   (message_id,topic,message_type,correlation_id,idempotency_key,published_at,available_at,body)
+                   VALUES(?,?,?,?,?,?,?,?)""",
+                (
+                    message.message_id,
+                    message.topic,
+                    message.message_type,
+                    message.correlation_id,
+                    message.idempotency_key,
+                    message.published_at.isoformat(),
+                    message.available_at.isoformat(),
+                    _dump(message),
+                ),
+            )
+            inserted = cursor.rowcount == 1
+            if inserted:
+                for subscription in subscriptions:
+                    connection.execute(
+                        """INSERT INTO pubsub_deliveries
+                           (message_id,subscription,status,attempts,lease_until,next_attempt_at,last_error,completed_at)
+                           VALUES(?,?,'pending',0,NULL,?,NULL,NULL)""",
+                        (message.message_id, subscription, message.available_at.isoformat()),
+                    )
+            connection.commit()
+        return inserted
+
+    def claim_deliveries(
+        self,
+        subscription: str,
+        now: datetime,
+        limit: int = 1,
+        lease_seconds: float = 30,
+    ) -> list[MessageDelivery]:
+        lease_until = now + timedelta(seconds=lease_seconds)
+        with self.connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                """UPDATE pubsub_deliveries SET status='pending',lease_until=NULL
+                   WHERE subscription=? AND status='processing'
+                     AND lease_until IS NOT NULL AND lease_until<=?""",
+                (subscription, now.isoformat()),
+            )
+            rows = connection.execute(
+                """SELECT d.*,m.body FROM pubsub_deliveries d
+                   JOIN pubsub_messages m ON m.message_id=d.message_id
+                   WHERE d.subscription=? AND d.status='pending' AND d.next_attempt_at<=?
+                   ORDER BY d.next_attempt_at,d.message_id LIMIT ?""",
+                (subscription, now.isoformat(), limit),
+            ).fetchall()
+            claimed: list[MessageDelivery] = []
+            for row in rows:
+                updated = connection.execute(
+                    """UPDATE pubsub_deliveries
+                       SET status='processing',attempts=attempts+1,lease_until=?
+                       WHERE message_id=? AND subscription=? AND status='pending'""",
+                    (lease_until.isoformat(), row["message_id"], subscription),
+                )
+                if updated.rowcount != 1:
+                    continue
+                claimed.append(
+                    MessageDelivery(
+                        subscription=subscription,
+                        message=PubSubMessage.model_validate_json(row["body"]),
+                        status="processing",
+                        attempts=int(row["attempts"]) + 1,
+                        lease_until=lease_until,
+                        next_attempt_at=_parse_datetime(row["next_attempt_at"]),
+                        last_error=row["last_error"],
+                    )
+                )
+            connection.commit()
+        return claimed
+
+    def complete_delivery(self, subscription: str, message_id: str) -> None:
+        with self.connection() as connection:
+            connection.execute(
+                """UPDATE pubsub_deliveries
+                   SET status='completed',lease_until=NULL,last_error=NULL,completed_at=?
+                   WHERE message_id=? AND subscription=? AND status!='dead_letter'""",
+                (datetime.now(UTC).isoformat(), message_id, subscription),
+            )
+
+    def retry_delivery(
+        self,
+        subscription: str,
+        message_id: str,
+        error: str,
+        available_at: datetime,
+        *,
+        dead_letter: bool = False,
+    ) -> None:
+        with self.connection() as connection:
+            connection.execute(
+                """UPDATE pubsub_deliveries
+                   SET status=?,next_attempt_at=?,lease_until=NULL,last_error=?
+                   WHERE message_id=? AND subscription=?""",
+                (
+                    "dead_letter" if dead_letter else "pending",
+                    available_at.isoformat(),
+                    error[:1000],
+                    message_id,
+                    subscription,
+                ),
+            )
+
+    def message_stats(self) -> dict[str, int]:
+        with self.connection() as connection:
+            rows = connection.execute(
+                "SELECT status,COUNT(*) AS count FROM pubsub_deliveries GROUP BY status"
+            ).fetchall()
+            retrying = connection.execute(
+                """SELECT COUNT(*) AS count FROM pubsub_deliveries
+                   WHERE status='pending' AND attempts>0"""
+            ).fetchone()["count"]
+            topics = connection.execute(
+                "SELECT COUNT(DISTINCT topic) AS count FROM pubsub_messages"
+            ).fetchone()["count"]
+        counts = {row["status"]: int(row["count"]) for row in rows}
+        return {
+            "topics": int(topics),
+            "pending": counts.get("pending", 0),
+            "processing": counts.get("processing", 0),
+            "completed": counts.get("completed", 0),
+            "retrying": int(retrying),
+            "dead_letters": counts.get("dead_letter", 0),
+        }
+
+    def save_workflow_state(self, state: WorkflowState) -> WorkflowState:
+        with self.connection() as connection:
+            connection.execute(
+                """INSERT INTO workflow_states
+                   (ticket_id,workflow_id,current_step,status,version,updated_at,body)
+                   VALUES(?,?,?,?,?,?,?)
+                   ON CONFLICT(ticket_id) DO UPDATE SET
+                     current_step=excluded.current_step,
+                     status=excluded.status,
+                     version=excluded.version,
+                     updated_at=excluded.updated_at,
+                     body=excluded.body
+                   WHERE excluded.version>=workflow_states.version""",
+                (
+                    state.ticket_id,
+                    state.workflow_id,
+                    state.current_step,
+                    state.status,
+                    state.version,
+                    state.updated_at.isoformat(),
+                    _dump(state),
+                ),
+            )
+        return state
+
+    def get_workflow_state(self, ticket_id: str) -> WorkflowState | None:
+        with self.connection() as connection:
+            row = connection.execute(
+                "SELECT body FROM workflow_states WHERE ticket_id=?", (ticket_id,)
+            ).fetchone()
+        return WorkflowState.model_validate_json(row["body"]) if row else None
 
     def save_action(self, action: ActionRecord) -> ActionRecord:
         with self.connection() as connection:

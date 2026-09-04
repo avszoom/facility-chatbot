@@ -18,8 +18,13 @@ The default `AGENT_RUNTIME=deterministic` is credential-free and repeatable. Set
 
 `make run` starts three independently replaceable service groups: **Operations**
 (API plus three durable workers), **Building World**, and **Web UI**.
-The simulator creates an
-occupant request or building condition every 45 seconds by default; set
+Building World and Operations communicate only through a SQLite-backed durable
+pub/sub adapter. The local broker provides at-least-once delivery, leased consumers,
+exponential retry, a dead-letter state, and idempotent message publication. Every
+ticket also has a saved `WF-*` checkpoint, so a worker restart resumes the current
+step instead of starting the ticket over.
+
+The simulator publishes an occupant request or building condition every 45 seconds by default; set
 `SIMULATION_INTERVAL_SECONDS` to change the cadence, or
 `SIMULATION_ENABLED=false` to turn it off. The **Agent live** workspace shows both
 engines, the durable handoff between them, public decision summaries, tool outcomes,
@@ -39,7 +44,8 @@ make run-ui
 ```
 
 Set `AGENT_WORKER_COUNT` to control how many independent ticket steps can execute
-concurrently. The local default is `3`.
+concurrently. The local default is `3`. Reliability controls are
+`MESSAGE_MAX_ATTEMPTS`, `MESSAGE_RETRY_BASE_SECONDS`, and `MESSAGE_LEASE_SECONDS`.
 
 ## Scenario walkthrough
 

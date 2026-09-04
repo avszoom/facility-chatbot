@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 
 
 class LocalEventBus:
-    """Process-local UI fanout. AWS can replace it with EventBridge/SNS/WebSocket delivery."""
+    """Best-effort process-local UI hints; durable service messaging lives in MessageBusPort."""
 
     def __init__(self):
         self._subscribers: set[asyncio.Queue] = set()

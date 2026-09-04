@@ -19,4 +19,6 @@ def test_model_failure_retries_then_escalates_to_recoverable_state(system):
         system.workflow.process_due(now=datetime.now(UTC) + timedelta(hours=index + 1))
     saved = system.repository.get_ticket(ticket.ticket_id)
     assert saved.status == TicketStatus.ESCALATED
-    assert any(event.event_type == "workflow.escalated" for event in system.repository.list_events(ticket.ticket_id))
+    assert any(event.event_type == "workflow.dead_lettered" for event in system.repository.list_events(ticket.ticket_id))
+    assert system.message_bus.stats()["dead_letters"] == 1
+    assert system.repository.get_workflow_state(ticket.ticket_id).status == "failed"

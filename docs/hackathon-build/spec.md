@@ -12,7 +12,7 @@ The same domain services run locally and on AWS. Persistence, event scheduling, 
 - **Agent:** Strands Agents SDK for Python with Pydantic structured output, custom tools, and lifecycle hooks.
 - **Model:** Amazon Bedrock model through Strands; deterministic fixtures only for tests and offline UI development.
 - **Local persistence:** SQLite in WAL mode.
-- **Local workflow:** an Operations service containing the API and a configurable pool of Python workers polling a persisted event/outbox table; no in-memory timers as the source of truth.
+- **Local workflow:** a transactional SQLite outbox publishes to a durable pub/sub adapter; a configurable pool of Operations subscribers consumes leased deliveries. No in-memory timer or process-local queue is a source of truth.
 - **Frontend:** React, TypeScript, Vite, TanStack Query, React Router, CSS variables; avoid a heavyweight component system.
 - **Streaming:** Server-Sent Events with API refetch on reconnect.
 - **Tests:** pytest, FastAPI TestClient/httpx, Vitest, React Testing Library, and one Playwright hero-flow test if time permits.
@@ -41,10 +41,12 @@ Ticket service                 Approval service
         │                           │
         ▼                           │
 SQLite repositories ◀──────────────┘
-        │ persisted events/outbox
+        │ transactional workflow outbox + checkpoints
         ▼
-Durable leased-job queue
-        │ one bounded ticket step
+Durable pub/sub topics
+  building.events ──► operations.intake subscription
+  workflow.commands ► operations.workflow subscription
+        │ leased at-least-once delivery
         ▼
 Isolated Strands agent execution
         │ typed decision + tool calls
@@ -124,6 +126,13 @@ execution is scoped to one ticket/workflow correlation ID, and each worker claim
 one bounded workflow step. `AGENT_WORKER_COUNT` limits local concurrency. Waiting for a
 person, technician, or verification window persists state and releases the worker.
 
+Every message has a stable message ID, correlation ID, and idempotency key. Consumers
+acknowledge only after the bounded workflow step succeeds. Failures use exponential
+backoff and move to a dead-letter state after the configured attempt limit. Ticket
+versions, deterministic event/action IDs, and idempotent tool writes make redelivery
+safe. A versioned `WorkflowState` checkpoint records the last completed step, wait
+reason, wake time, and ticket version for restart recovery and operator visibility.
+
 ### Tools
 
 Implements: `prd.md > Epic 3`, `Epic 4`
@@ -195,6 +204,7 @@ backend/
       work_orders.py        technician lifecycle
       notifications.py      ticket conversation updates
     services/
+      operations.py         pub/sub intake and workflow subscriber router
       tickets.py            use cases and state transitions
       workflow.py           one bounded durable step
       verification.py       outcome-specific closure checks
@@ -202,6 +212,9 @@ backend/
       ports.py              persistence interfaces
       sqlite.py             local implementation
       dynamodb.py           AWS phase implementation
+    messaging/
+      ports.py              durable pub/sub contract
+      local.py              SQLite topics, subscriptions, retry, and DLQ
     scheduling/
       ports.py              enqueue/schedule interface
       local_worker.py       SQLite leasing and polling
@@ -233,13 +246,14 @@ deploy/
 
 ## Data Flow
 
-1. The occupant submits a ticket; FastAPI persists it and appends `ticket.created` plus a deterministic triage job.
-2. The worker leases the job, loads the current ticket version, computes eligible actions, and invokes the Strands agent.
-3. The structured decision is validated. Reads execute immediately; writes pass through policy and idempotency checks.
-4. The domain service appends events, changes status, and creates the next immediate or scheduled job in the same transaction.
-5. SSE announces the update; the browser refetches canonical state.
-6. Waiting tickets have no open model invocation or web request. A persisted future job resumes them.
-7. Verification uses tool evidence and domain rules. Only the service can close the ticket.
+1. Building World publishes `building.request.detected` to `building.events`; the Operations intake subscription creates the ticket idempotently. Direct receptionist intake enters through the same ticket service.
+2. Ticket changes and the next deterministic job are persisted together. A relay publishes due outbox jobs to `workflow.commands` with an idempotency key.
+3. A worker leases one `operations.workflow` delivery, loads the current ticket version, computes eligible actions, and invokes the Strands agent.
+4. The structured decision is validated. Reads execute immediately; writes pass through policy and idempotency checks.
+5. On success the consumer saves a versioned workflow checkpoint and acknowledges the message. On failure it retries with backoff; exhaustion dead-letters and safely escalates the ticket.
+6. SSE announces the update; the browser refetches canonical state.
+7. Waiting tickets have no open model invocation or web request. A persisted future outbox job resumes them.
+8. Verification uses tool evidence and domain rules. Only the service can close the ticket.
 
 ## Local Runtime
 
@@ -256,7 +270,8 @@ make demo-check
 ```
 
 The three logical services are Operations (API plus worker pool), Building World
-(sensors and ticket generation), and Web UI. `make run` starts all three. Stopping
+(sensors and event publication), and Web UI. Building World and Operations communicate
+through durable pub/sub rather than direct method calls. `make run` starts all three. Stopping
 Operations during `waiting_technician`, then restarting it, must visibly resume the
 same ticket without duplicate actions.
 
