@@ -14,7 +14,7 @@ The domain models, state machine, policy rules, action gateway, ticket service, 
 | Knowledge | Versioned local JSON | S3 + OpenSearch or Bedrock Knowledge Bases | `KnowledgePort.search` |
 | Telemetry and commands | 60-sensor live twin, rolling history, anomaly injection, and safe commands | IoT SiteWise/TwinMaker + IoT Core rules and command adapter | `BuildingPort` |
 | Work orders | Local CMMS simulator | AgentCore Gateway or direct CMMS API | `WorkOrderPort` |
-| Occupant updates | Ticket timeline event | SNS/SES/Amazon Connect | `NotificationPort` |
+| Resident updates | Ticket timeline event | SNS/SES/Amazon Connect | `NotificationPort` |
 | Agent-live aggregation | `/api/operations/live` over durable ticket/event state | DynamoDB streams/materialized metrics + API Gateway | live-operations response schema |
 | Live UI updates | Process-local SSE fanout + polling | API Gateway WebSocket + EventBridge/SNS | event envelope |
 | API | Local FastAPI/Uvicorn | ECS Fargate or Lambda Web Adapter | OpenAPI routes and schemas |

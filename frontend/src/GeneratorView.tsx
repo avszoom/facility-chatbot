@@ -32,25 +32,25 @@ type RequestPreset = {
 const requestPresets: Record<RequestType, RequestPreset> = {
   enquiry: {
     label: "Knowledge enquiry", shortLabel: "Knowledge",
-    detail: "An occupant asks for building information, hours, access, or a procedure.",
+    detail: "A resident asks about amenities, access, deliveries, or a building procedure.",
     subject: "Fitness center hours", description: "What time does the fitness center close tonight?",
-    requester: "Priya Shah", floor: 1, room: "Fitness center", condition: "normal",
-    agentOutcome: "Search approved building knowledge, reply to the occupant, and close the ticket.",
+    requester: "Priya Shah", floor: 2, room: "Fitness center", condition: "normal",
+    agentOutcome: "Search approved residential knowledge, reply to the resident, and close the ticket.",
   },
   service_request: {
     label: "Service request", shortLabel: "Service",
-    detail: "An occupant reports a routine building problem that may allow a policy-safe operational change.",
-    subject: "Conference Room 4B is too warm",
-    description: "The room feels hot during our client meeting. Can facilities check the temperature?",
-    requester: "Marcus Lee", floor: 4, room: "Conference 4B", condition: "temperature_high",
+    detail: "A resident reports an apartment problem that may allow a policy-safe operational change.",
+    subject: "Apartment 4B is too warm",
+    description: "My living room feels hot even though the thermostat is set correctly. Can building operations check it?",
+    requester: "Marcus Lee", floor: 4, room: "Apartment 4B", condition: "temperature_high",
     agentOutcome: "Correlate the ticket with telemetry, perform an allowed adjustment, and verify recovery.",
   },
   incident: {
     label: "Safety incident", shortLabel: "Safety",
-    detail: "An occupant reports evidence of a potentially unsafe condition requiring investigation.",
-    subject: "Unusual burning smell in the Floor 5 pantry",
-    description: "There is a strong burning smell in the pantry on Floor 5. I cannot see smoke, but the odor is getting stronger.",
-    requester: "Building Occupant", floor: 5, room: "Pantry", condition: "smoke_or_odor",
+    detail: "A resident reports evidence of a potentially unsafe condition requiring investigation.",
+    subject: "Unusual burning smell outside Apartment 5E",
+    description: "There is a strong burning smell in the corridor outside Apartment 5E. I cannot see smoke, but the odor is getting stronger.",
+    requester: "Building Resident", floor: 5, room: "Apartment 5E", condition: "smoke_or_odor",
     agentOutcome: "Correlate the report with the local alarm, request approval, dispatch the correct trade, and verify clearance.",
   },
 };
@@ -71,15 +71,15 @@ const conditionOptions: Record<RequestType, Array<{ value: ConditionType; label:
 const scenarioCopy: Record<ScenarioType, { label: string; detail: string }> = {
   all: { label: "Mixed scenarios", detail: "Rotate through the full building scenario catalog." },
   enquiry: { label: "Knowledge enquiries", detail: "Hours, access, visitors, deliveries, amenities, and procedures." },
-  service_request: { label: "Service requests", detail: "Occupant reports paired with relevant warning telemetry." },
-  incident: { label: "Safety incidents", detail: "Occupant reports paired with critical local sensor alarms." },
+  service_request: { label: "Service requests", detail: "Resident reports paired with relevant apartment telemetry." },
+  incident: { label: "Safety incidents", detail: "Resident reports paired with critical local sensor alarms." },
 };
 
 function locationIdFor(floor: number, room: string) {
-  if (floor === 1 && room === "Fitness center") return "BLDG-A-F01-FITNESS";
+  if (floor === 2 && room === "Fitness center") return "BLDG-A-F02-FITNESS";
   if (floor === 1 && room === "Main lobby") return "BLDG-A-LOBBY";
-  if (floor === 4 && room === "Conference 4B") return "BLDG-A-F04-CONF-4B";
-  if (floor === 7 && room === "East office zone") return "BLDG-A-F07-EAST";
+  if (floor === 4 && room === "Apartment 4B") return "BLDG-A-F04-APT-4B";
+  if (floor === 7 && room === "East residential wing") return "BLDG-A-F07-EAST";
   const roomCode = room.toUpperCase().replaceAll("&", "AND").replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "");
   return `BLDG-A-F${String(floor).padStart(2, "0")}-${roomCode}`;
 }
@@ -131,15 +131,15 @@ export function GeneratorView({ live, busy, onPublishRequest, onGenerate, onOpen
   const sensorId = sensorIdFor(conditionType, selectedFloor);
   const worldEffect = sensorId
     ? `${sensorId} at Floor ${selectedFloor} · ${selectedRoom} will enter ${conditionType === "smoke_or_odor" || conditionType === "electrical_overheat" ? "critical alarm" : "warning"}.`
-    : `Floor ${selectedFloor} · ${selectedRoom} remains healthy; only the occupant request is published.`;
+    : `Floor ${selectedFloor} · ${selectedRoom} remains healthy; only the resident request is published.`;
   const condition = live.simulation.last_event?.condition.condition;
 
   return <section className="generator-view">
-    <header className="generator-heading"><div><p>BUILDING WORLD CONTROL</p><h2>Create a real request scenario</h2><span>Select any floor and space, publish the occupant report, and induce only the matching building condition.</span></div><span className="generator-state paused"><i />Console-only publishing</span></header>
+    <header className="generator-heading"><div><p>RESIDENTIAL TOWER CONTROL</p><h2>Create a real resident scenario</h2><span>Select any apartment or amenity, publish the resident report, and induce only the matching building condition.</span></div><span className="generator-state paused"><i />Console-only publishing</span></header>
 
     <div className="generator-layout request-scenario-layout">
       <form className="generator-card request-composer" onSubmit={submitRequest}>
-        <div className="generator-card-title"><span>01</span><div><h3>Raise an occupant request</h3><p>Compose the report exactly as reception would receive it.</p></div></div>
+        <div className="generator-card-title"><span>01</span><div><h3>Raise a resident request</h3><p>Compose the report exactly as the concierge would receive it.</p></div></div>
         <fieldset className="request-type-picker"><legend>What kind of request is this?</legend><div>{(Object.keys(requestPresets) as RequestType[]).map((type) => <button type="button" className={requestType === type ? "active" : ""} onClick={() => chooseType(type)} key={type}><b>{requestPresets[type].shortLabel}</b><span>{type === "enquiry" ? "Information only" : type === "service_request" ? "Operational change" : "Safety response"}</span></button>)}</div></fieldset>
         <div className="request-type-explanation"><b>{preset.label}</b><span>{preset.detail}</span></div>
 
@@ -153,7 +153,7 @@ export function GeneratorView({ live, busy, onPublishRequest, onGenerate, onOpen
 
         <div className="generator-form-grid"><label>Requester<input value={requester} onChange={(event) => setRequester(event.target.value)} required minLength={2} /></label><label>Simulated building condition<select value={conditionType} onChange={(event) => { setConditionType(event.target.value as ConditionType); setReceipt(null); }}>{conditionOptions[requestType].map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label></div>
         <label>Subject<input value={subject} onChange={(event) => setSubject(event.target.value)} required minLength={3} maxLength={120} /></label>
-        <label>Occupant message<textarea value={description} onChange={(event) => setDescription(event.target.value)} required minLength={3} maxLength={2000} rows={4} placeholder="Describe what the occupant is asking or reporting…" /><small>The agent classifies the text independently; the selected condition controls the simulated sensor evidence.</small></label>
+        <label>Resident message<textarea value={description} onChange={(event) => setDescription(event.target.value)} required minLength={3} maxLength={2000} rows={4} placeholder="Describe what the resident is asking or reporting…" /><small>The agent classifies the text independently; the selected condition controls the simulated sensor evidence.</small></label>
         <button className="publish-button" disabled={busy}>Create request and building scenario</button>
         {receipt && <div className="request-receipt"><span>✓</span><div><b>{receipt.payload.ticket_id} published</b><p>Request and {sensorId || "normal building state"} are correlated on <strong>building.events</strong>.</p><div><button type="button" onClick={onOpenActivity}>Watch agent activity</button><button type="button" onClick={onOpenBuilding}>View building sensors</button></div></div></div>}
       </form>

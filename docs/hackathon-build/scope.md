@@ -2,17 +2,17 @@
 
 ## Product Promise
 
-BuildingOps Concierge is a professional agent that clears repetitive building-support work from a facility or property team's queue. It receives occupant tickets, understands the request, takes policy-safe action, waits for external work when necessary, keeps people informed, verifies the outcome, and closes the ticket.
+BuildingOps Concierge is a professional agent that clears repetitive residential-building work from a property team's queue. It receives resident requests, understands the need, takes policy-safe action, waits for external work when necessary, keeps residents informed, verifies the outcome, and closes the ticket.
 
 ## Primary User
 
-The primary user is a facility or property operations manager responsible for a shared commercial building. Occupants submit tickets, but the product is judged by how much repetitive operational work it removes from the professional team.
+The primary user is a concierge or property operations manager responsible for Northstar Residences, a ten-story tower with 132 apartments, shared lounges, a gym, yoga studio, pool, café, parcel room, and roof terrace. Residents submit requests, but the product is judged by how much repetitive operational work it removes from the professional team.
 
 ## MVP Ticket Paths
 
 1. **Enquiry:** “What time does the gym close?” The agent retrieves an authoritative answer, replies with its source, and closes the ticket.
-2. **Service request:** “The conference room is too warm.” The agent checks telemetry and policy, applies an allowlisted setpoint adjustment, verifies the result, and closes the ticket.
-3. **Building incident:** “The lights are flickering and there is a burning smell.” The agent performs safety triage, investigates evidence, creates a technician work order, waits durably, sends updates, interprets completion notes, verifies telemetry recovery, and closes or escalates.
+2. **Service request:** “Apartment 4B is too warm.” The agent checks telemetry and policy, applies an allowlisted setpoint adjustment, verifies the result, and closes the ticket.
+3. **Building incident:** “The Floor 7 corridor lights are flickering and there is a burning smell.” The agent performs safety triage, investigates evidence, creates a technician work order, waits durably, sends updates, interprets completion notes, verifies telemetry recovery, and closes or escalates.
 
 ## Hero Outcome
 
@@ -34,7 +34,7 @@ The inbox starts with three new tickets. The agent resolves two with zero operat
 
 ## Explicit Non-Goals
 
-- Real integrations with commercial CMMS, BMS, email, Slack, access control, or booking providers.
+- Real integrations with property-management systems, BMS, email, resident apps, access control, parcel, or amenity-booking providers.
 - Multi-building tenancy, production authentication, billing, or mobile applications.
 - A general-purpose chatbot.
 - Autonomous life-safety changes, electrical isolation, expensive purchases, or irreversible actions.

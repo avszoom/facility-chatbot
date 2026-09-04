@@ -1,6 +1,6 @@
 # BuildingOps Autopilot
 
-A durable Strands-based professional agent that works building-support tickets from intake to verified outcome. It answers enquiries, safely adjusts comfort controls, investigates incidents, pauses for consequential human approval, waits for technicians without holding a request open, and closes only after independent verification.
+A durable Strands-based residential-operations agent that works resident requests from intake to verified outcome. It answers enquiries, safely adjusts apartment comfort controls, investigates incidents, pauses for consequential concierge approval, waits for technicians without holding a request open, and closes only after independent verification.
 
 ## Run locally
 
@@ -38,7 +38,11 @@ exponential retry, a dead-letter state, and idempotent message publication. Ever
 ticket also has a saved `WF-*` checkpoint, so a worker restart resumes the current
 step instead of starting the ticket over.
 
-The Building World owns a 60-device digital twin across all ten floors. It advances
+The Building World owns a 60-device digital twin of **Northstar Residences**, a
+ten-story, 132-apartment tower. Floors 3–9 contain apartments, Floor 10 contains
+penthouses and a sky lounge, Floor 2 contains the gym, yoga studio, residents club,
+and pool, and Floor 1 contains the lobby, café, parcel room, and management office.
+It advances
 temperature, CO₂, humidity, VOC/odor, occupancy, and electrical telemetry every two
 seconds and keeps bounded rolling history. It never creates tickets on a timer. Every
 request must come from an explicit console action: New request, the Request generator
@@ -57,8 +61,8 @@ reported floor, reads the relevant rolling histories, and can search maintenance
 records and the building knowledge base. Its typed decision must cite exact sensor
 IDs; unknown or cross-floor IDs are rejected. Public `agent.tools_completed` and
 `evidence.correlated` events show what evidence was used without exposing private
-chain-of-thought. A sensor-only ticket follows the same durable workflow as an
-occupant report.
+chain-of-thought. A sensor-only ticket follows the same durable workflow as a
+resident report.
 
 To run each service boundary in its own terminal instead:
 
@@ -66,7 +70,7 @@ To run each service boundary in its own terminal instead:
 # Terminal 1: API plus the ticket-clearing worker pool
 make run-operations
 
-# Terminal 2: sensors, building conditions, and occupant request generation
+# Terminal 2: sensors, building conditions, and resident request generation
 make run-world
 
 # Terminal 3: receptionist web application
@@ -79,10 +83,10 @@ concurrently. The local default is `3`. Reliability controls are
 
 ## Scenario walkthrough
 
-1. Open Agent live and generate a building-world event, or wait for the next scheduled event.
-2. Show the gym enquiry already answered and closed from a cited source.
-3. Show the warm room’s policy-approved setpoint change and verified closure.
-4. Open the electrical incident, inspect correlated evidence, then approve dispatch.
+1. Open Agent live and intentionally publish a request from New request or Request generator.
+2. Show the fitness-center enquiry answered and closed from a cited residential policy.
+3. Show Apartment 4B’s policy-approved temperature change and verified closure.
+4. Open the Floor 7 residential-corridor electrical incident, inspect correlated evidence, then approve dispatch.
 5. Advance waiting work twice to show technician completion followed by independent verification.
 
 ## Verify

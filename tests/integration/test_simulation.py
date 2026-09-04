@@ -131,7 +131,7 @@ def test_receptionist_request_is_published_then_consumed_by_operations(system):
             "subject": "Fitness center hours",
             "description": "What time does the fitness center close tonight?",
             "requester": "Priya Shah",
-            "location_id": "BLDG-A-F01-FITNESS",
+            "location_id": "BLDG-A-F02-FITNESS",
         },
     )
 
@@ -160,10 +160,10 @@ def test_request_type_injects_correlated_building_condition(system):
 
     system.simulation.publish_request(
         request=TicketCreate(
-            subject="Conference room is too warm",
-            description="The room is hot during our meeting.",
+            subject="Apartment 4B is too warm",
+            description="The living room is hot.",
             requester="Marcus Lee",
-            location_id="BLDG-A-F04-CONF-4B",
+            location_id="BLDG-A-F04-APT-4B",
             kind="service_request",
         ),
         request_type="service_request",
@@ -194,15 +194,15 @@ def test_floor_five_pantry_odor_correlates_ticket_sensor_and_agent(system):
             "condition_type": "smoke_or_odor",
             "subject": "Burning smell in the Floor 5 pantry",
             "description": "There is a strong burning smell in the pantry and it is getting worse.",
-            "requester": "Building Occupant",
-            "location_id": "BLDG-A-F05-PANTRY",
+            "requester": "Building Resident",
+            "location_id": "BLDG-A-F05-APT-5E",
         },
     )
     assert published.status_code == 202
     ticket_id = published.json()["payload"]["ticket_id"]
     snapshot = system.building.snapshot()
     alarm = snapshot["sensor_overrides"]["VOC-05-01"]
-    assert alarm["area"] == "Pantry"
+    assert alarm["area"] == "Apt 5E"
     assert alarm["state"] == "Critical"
     assert snapshot["active_conditions"][ticket_id]["sensor_id"] == "VOC-05-01"
 

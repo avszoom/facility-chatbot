@@ -10,17 +10,19 @@ from backend.app.repositories.ports import OperationsRepository
 
 
 FLOORS: tuple[dict[str, Any], ...] = (
-    {"number": 1, "name": "Welcome & Amenities", "occupancy": 41, "capacity": 80},
-    {"number": 2, "name": "People & Operations", "occupancy": 31, "capacity": 52},
-    {"number": 3, "name": "Sales & Marketing", "occupancy": 42, "capacity": 66},
-    {"number": 4, "name": "Client Services", "occupancy": 34, "capacity": 56},
-    {"number": 5, "name": "Product & Design", "occupancy": 43, "capacity": 64},
-    {"number": 6, "name": "Engineering West", "occupancy": 54, "capacity": 70},
-    {"number": 7, "name": "Engineering East", "occupancy": 46, "capacity": 62},
-    {"number": 8, "name": "Product Studio", "occupancy": 51, "capacity": 68},
-    {"number": 9, "name": "Finance & Legal", "occupancy": 39, "capacity": 58},
-    {"number": 10, "name": "Executive & Board", "occupancy": 27, "capacity": 42},
+    {"number": 1, "name": "Lobby, Café & Services", "occupancy": 36, "capacity": 100},
+    {"number": 2, "name": "Fitness & Residents Club", "occupancy": 31, "capacity": 90},
+    {"number": 3, "name": "Residences 301–318", "occupancy": 45, "capacity": 72},
+    {"number": 4, "name": "Residences 401–418", "occupancy": 38, "capacity": 72},
+    {"number": 5, "name": "Residences 501–518", "occupancy": 49, "capacity": 72},
+    {"number": 6, "name": "Residences 601–618", "occupancy": 55, "capacity": 72},
+    {"number": 7, "name": "Residences 701–718", "occupancy": 47, "capacity": 72},
+    {"number": 8, "name": "Residences 801–818", "occupancy": 51, "capacity": 72},
+    {"number": 9, "name": "Residences 901–918", "occupancy": 43, "capacity": 72},
+    {"number": 10, "name": "Penthouses & Sky Lounge", "occupancy": 28, "capacity": 44},
 )
+
+BUILDING_SCHEMA_VERSION = 2
 
 
 def _sensor(
@@ -64,7 +66,7 @@ def _sensor_inventory() -> dict[str, dict[str, Any]]:
             _sensor(f"HUM-{pad}-01", floor, "Humidity", 39 + (number % 5), "%", "30–60%"),
             _sensor(f"VOC-{pad}-01", floor, "VOC / odor", 16 + number, "ppb", "< 50 ppb"),
             _sensor(f"OCC-{pad}-01", floor, "Occupancy", floor["occupancy"], "people", f"≤ {floor['capacity']}"),
-            _sensor(f"PWR-{pad}-01", floor, "Electrical load", 78 + number * 4, "kW", "< 145 kW"),
+            _sensor(f"PWR-{pad}-01", floor, "Electrical load", 46 + number * 3, "kW", "< 110 kW"),
         )
         for record in records:
             inventory[record["id"]] = record
@@ -73,8 +75,8 @@ def _sensor_inventory() -> dict[str, dict[str, Any]]:
         {
             "id": "ELEC-7A",
             "asset_id": "ELEC-7A",
-            "name": "Floor 7 Lighting Distribution Panel",
-            "area": "Floor 7 east panel",
+            "name": "Floor 7 Residential Distribution Panel",
+            "area": "Floor 7 east residential wing",
             "type": "Cabinet temperature",
             "numeric_value": 84.2,
             "unit": "°F",
@@ -92,39 +94,54 @@ def _sensor_inventory() -> dict[str, dict[str, Any]]:
 def _default_building() -> dict[str, Any]:
     inventory = _sensor_inventory()
     return {
-    "assets": {
-        "AHU-ZONE-4B": {
-            "asset_id": "AHU-ZONE-4B",
-            "name": "Conference Room 4B VAV",
-            "type": "hvac_zone",
-            "location_id": "BLDG-A-F04-CONF-4B",
-            "temperature_f": 72.7,
-            "setpoint_f": 72.0,
-            "target_temperature_f": 72.5,
-            "status": "operational",
+        "schema_version": BUILDING_SCHEMA_VERSION,
+        "property": {
+            "name": "Northstar Residences",
+            "type": "residential_tower",
+            "apartments": 132,
+            "resident_capacity": 738,
+            "amenities": [
+                "Fitness center",
+                "Yoga studio",
+                "Indoor pool",
+                "Northstar Café",
+                "Sky lounge",
+                "Roof terrace",
+            ],
         },
-        "ELEC-PNL-7A": {
-            "asset_id": "ELEC-PNL-7A",
-            "name": "Floor 7 Lighting Distribution Panel",
-            "type": "electrical_panel",
-            "location_id": "BLDG-A-F07-ELEC-7A",
-            "cabinet_temperature_f": 84.2,
-            "current_amps": 30.4,
-            "status": "operational",
+        "assets": {
+            "AHU-ZONE-4B": {
+                "asset_id": "AHU-ZONE-4B",
+                "name": "Apartment 4B fan-coil zone",
+                "type": "hvac_zone",
+                "location_id": "BLDG-A-F04-APT-4B",
+                "temperature_f": 72.7,
+                "setpoint_f": 72.0,
+                "target_temperature_f": 72.5,
+                "status": "operational",
+            },
+            "ELEC-PNL-7A": {
+                "asset_id": "ELEC-PNL-7A",
+                "name": "Floor 7 Residential Distribution Panel",
+                "type": "electrical_panel",
+                "location_id": "BLDG-A-F07-ELEC-7A",
+                "cabinet_temperature_f": 84.2,
+                "current_amps": 30.4,
+                "status": "operational",
+            },
         },
-    },
-    "history": {
-        "AHU-ZONE-4B": [
-            {"minutes_ago": 30, "temperature_f": 72.4, "setpoint_f": 72.0},
-            {"minutes_ago": 15, "temperature_f": 72.6, "setpoint_f": 72.0},
-            {"minutes_ago": 0, "temperature_f": 72.7, "setpoint_f": 72.0},
-        ],
-        "ELEC-PNL-7A": [
-            {"minutes_ago": 30, "cabinet_temperature_f": 82.6, "current_amps": 29.8},
-            {"minutes_ago": 15, "cabinet_temperature_f": 83.7, "current_amps": 30.1},
-            {"minutes_ago": 0, "cabinet_temperature_f": 84.2, "current_amps": 30.4},
-        ],
-    },
+        "history": {
+            "AHU-ZONE-4B": [
+                {"minutes_ago": 30, "temperature_f": 72.4, "setpoint_f": 72.0},
+                {"minutes_ago": 15, "temperature_f": 72.6, "setpoint_f": 72.0},
+                {"minutes_ago": 0, "temperature_f": 72.7, "setpoint_f": 72.0},
+            ],
+            "ELEC-PNL-7A": [
+                {"minutes_ago": 30, "cabinet_temperature_f": 82.6, "current_amps": 29.8},
+                {"minutes_ago": 15, "cabinet_temperature_f": 83.7, "current_amps": 30.1},
+                {"minutes_ago": 0, "cabinet_temperature_f": 84.2, "current_amps": 30.4},
+            ],
+        },
         "sensors": inventory,
         "sensor_history": {
             sensor_id: [
@@ -138,10 +155,38 @@ def _default_building() -> dict[str, Any]:
             for sensor_id, sensor in inventory.items()
         },
         "maintenance_history": [
-            {"date": "2026-08-21", "floor": 5, "asset_type": "VOC / odor", "asset_id": "EXH-05-PANTRY", "summary": "Pantry exhaust filter replaced after intermittent cooking-odor reports.", "outcome": "Airflow restored and clearance reading documented."},
-            {"date": "2026-08-12", "floor": 4, "asset_type": "Temperature", "asset_id": "AHU-ZONE-4B", "summary": "Conference 4B VAV damper recalibrated after warm-room report.", "outcome": "Damper response returned to specification."},
-            {"date": "2026-07-29", "floor": 7, "asset_type": "Cabinet temperature", "asset_id": "ELEC-PNL-7A", "summary": "Annual thermal inspection completed on Floor 7 lighting panel.", "outcome": "No hotspot observed at inspection time."},
-            {"date": "2026-07-11", "floor": 6, "asset_type": "VOC / odor", "asset_id": "AHU-06", "summary": "Outside-air damper actuator serviced following elevated CO₂ trend.", "outcome": "Ventilation trend normalized."},
+            {
+                "date": "2026-08-21",
+                "floor": 5,
+                "asset_type": "VOC / odor",
+                "asset_id": "EXH-05-CORRIDOR",
+                "summary": "Floor 5 corridor exhaust inspected after recurring cooking-odor reports from Apartment 5E.",
+                "outcome": "Airflow restored and clearance reading documented.",
+            },
+            {
+                "date": "2026-08-12",
+                "floor": 4,
+                "asset_type": "Temperature",
+                "asset_id": "AHU-ZONE-4B",
+                "summary": "Apartment 4B fan-coil valve recalibrated after a warm-room report.",
+                "outcome": "Zone response returned to specification.",
+            },
+            {
+                "date": "2026-07-29",
+                "floor": 7,
+                "asset_type": "Cabinet temperature",
+                "asset_id": "ELEC-PNL-7A",
+                "summary": "Annual thermal inspection completed on the Floor 7 residential panel.",
+                "outcome": "No hotspot observed at inspection time.",
+            },
+            {
+                "date": "2026-07-11",
+                "floor": 6,
+                "asset_type": "VOC / odor",
+                "asset_id": "AHU-06",
+                "summary": "Corridor outside-air damper serviced following an elevated CO₂ trend.",
+                "outcome": "Ventilation trend normalized.",
+            },
         ],
         "sensor_overrides": {},
         "active_conditions": {},
@@ -169,6 +214,9 @@ class LocalBuildingProvider:
 
     def _state(self) -> dict[str, Any]:
         state = self.repository.get_state(self.STATE_KEY) or deepcopy(DEFAULT_BUILDING)
+        if state.get("schema_version") != BUILDING_SCHEMA_VERSION:
+            state = deepcopy(DEFAULT_BUILDING)
+            self.repository.set_state(self.STATE_KEY, state)
         state.setdefault("sensor_overrides", {})
         state.setdefault("active_conditions", {})
         state.setdefault("sensors", deepcopy(DEFAULT_BUILDING["sensors"]))
@@ -205,8 +253,9 @@ class LocalBuildingProvider:
         match = re.search(r"-F\d{2}-(.+)$", location_id)
         segment = match.group(1) if match else location_id.split("-")[-1]
         replacements = {
-            "CONF-4B": "Conference 4B",
-            "EAST": "East office zone",
+            "APT-4B": "Apartment 4B",
+            "CONF-4B": "Apartment 4B",
+            "EAST": "East residential wing",
             "FITNESS": "Fitness center",
         }
         return replacements.get(segment, segment.replace("_", " ").replace("-", " ").title())
@@ -267,7 +316,7 @@ class LocalBuildingProvider:
             },
             "trend": deepcopy(history),
             "maintenance_history": maintenance,
-            "sources": ["occupant request", "live BMS telemetry", "rolling sensor history", "maintenance records"],
+            "sources": ["resident request", "live BMS telemetry", "rolling sensor history", "maintenance records"],
         }
 
     def advance_sensors(self, now: datetime | None = None) -> dict[str, Any]:

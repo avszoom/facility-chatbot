@@ -38,7 +38,7 @@ def test_staff_can_answer_an_escalated_request_and_close_it(system):
     response = client.post(
         f"/api/tickets/{ticket.ticket_id}/staff-response",
         json={
-            "response": "Northstar Building A is a commercial office workplace.",
+            "response": "Northstar Residences is a residential apartment tower.",
             "actor": "Maya Roberts",
         },
     )
@@ -63,7 +63,7 @@ def test_staff_can_answer_an_escalated_request_and_close_it(system):
     repeated = client.post(
         f"/api/tickets/{ticket.ticket_id}/staff-response",
         json={
-            "response": "Northstar Building A is a commercial office workplace.",
+            "response": "Northstar Residences is a residential apartment tower.",
             "actor": "Maya Roberts",
         },
     )
@@ -86,5 +86,5 @@ def test_building_type_question_is_answered_from_trusted_knowledge(system):
     detail = system.tickets.detail(ticket.ticket_id)
     assert detail.ticket.status == "resolved"
     answer = next(event for event in detail.events if event.event_type == "message.sent" and "Source:" in event.summary)
-    assert "commercial office workplace" in answer.summary
+    assert "residential apartment tower" in answer.summary
     assert "Property Profile" in answer.summary

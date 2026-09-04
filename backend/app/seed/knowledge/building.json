@@ -1,56 +1,62 @@
 [
   {
-    "title": "Building classification and use",
-    "content": "Northstar Building A is a commercial office workplace, not a residential building. Its ten occupied floors contain tenant offices, shared amenities, reception, and building operations spaces.",
-    "source": "Northstar Building A Property Profile · Building classification · revised August 2026",
-    "keywords": ["office building", "commercial", "workplace", "residential", "resident", "building type", "property type"]
+    "title": "Property classification and residences",
+    "content": "Northstar Residences is a residential apartment tower, not an office building. Floors 3 through 9 contain Apartments 301 through 918, and Floor 10 contains six penthouse homes plus the shared sky lounge and roof terrace.",
+    "source": "Northstar Residences Property Profile · Building classification · revised August 2026",
+    "keywords": ["residential building", "apartment", "apartments", "flat", "flats", "resident", "residences", "building type", "property type", "office"]
   },
   {
-    "title": "Fitness center operating hours",
-    "content": "The Building Alpha fitness center is open Monday through Friday from 6:00 AM to 10:00 PM, and weekends from 8:00 AM to 8:00 PM. Access requires an active tenant badge.",
-    "source": "Building Alpha Tenant Handbook · Amenities · revised August 2026",
-    "keywords": ["gym", "fitness", "hours", "open", "close", "timings", "amenity"]
+    "title": "Fitness center and pool hours",
+    "content": "The resident fitness center and yoga studio are on Floor 2 and open daily from 5:00 AM to 11:00 PM. The indoor pool is open from 6:00 AM to 10:00 PM. Residents must use their building access credential and guests must be accompanied.",
+    "source": "Northstar Residences Handbook · Fitness and wellness amenities · revised August 2026",
+    "keywords": ["gym", "fitness", "yoga", "pool", "hours", "open", "close", "timings", "amenity"]
   },
   {
-    "title": "Loading dock deliveries",
-    "content": "Loading dock deliveries require a reservation between 7:00 AM and 5:00 PM on weekdays.",
-    "source": "Building Alpha Operations Manual · Deliveries · revised August 2026",
-    "keywords": ["loading", "dock", "delivery", "reservation", "hours"]
+    "title": "Northstar Café hours",
+    "content": "Northstar Café is beside the main lobby on Floor 1. It is open from 6:30 AM to 8:00 PM Monday through Friday and from 7:30 AM to 6:00 PM on weekends.",
+    "source": "Northstar Residences Handbook · Lobby services · revised August 2026",
+    "keywords": ["cafe", "café", "coffee", "breakfast", "food", "hours", "open", "close"]
   },
   {
-    "title": "Conference room comfort policy",
-    "content": "Occupied conference rooms may be adjusted between 68°F and 75°F. Changes outside that range require facilities approval.",
-    "source": "Building Alpha Energy and Comfort Policy · section 4.2",
-    "keywords": ["conference", "temperature", "warm", "cold", "setpoint", "comfort"]
+    "title": "Move-ins and large deliveries",
+    "content": "Furniture deliveries and resident move-ins use the service entrance between 8:00 AM and 5:00 PM on weekdays and require a confirmed elevator reservation. Grocery and meal deliveries meet residents in the main lobby.",
+    "source": "Northstar Residences Operations Manual · Move-ins and deliveries · revised August 2026",
+    "keywords": ["moving", "move-in", "move in", "furniture", "grocery", "food delivery", "service entrance", "delivery", "elevator reservation"]
   },
   {
-    "title": "Visitor check-in",
-    "content": "Visitors check in at the main lobby reception desk with photo identification. Their host receives an arrival notification and must confirm access before a temporary badge is issued.",
-    "source": "Building Alpha Tenant Handbook · Visitors · revised August 2026",
-    "keywords": ["visitor", "guest", "check-in", "check in", "badge", "reception", "lobby"]
+    "title": "Apartment temperature policy",
+    "content": "Apartment comfort controls may be adjusted between 68°F and 75°F. The operations agent may apply a reversible setpoint correction within that range; equipment repair or changes outside the range require facilities review.",
+    "source": "Northstar Residences Energy and Comfort Policy · section 4.2",
+    "keywords": ["apartment", "room", "temperature", "warm", "hot", "cold", "setpoint", "comfort", "heating", "air conditioning"]
   },
   {
-    "title": "Mailroom package collection",
-    "content": "The lobby mailroom is staffed on weekdays from 8:00 AM to 6:00 PM. Occupants must show an active tenant badge when collecting a package.",
-    "source": "Building Alpha Operations Manual · Mailroom · revised August 2026",
-    "keywords": ["package", "mailroom", "collect", "collection", "delivery notification"]
+    "title": "Resident visitor check-in",
+    "content": "Visitors check in with the concierge in the main lobby and present photo identification. The resident receives an arrival notification and must confirm access before a temporary visitor pass is issued.",
+    "source": "Northstar Residences Handbook · Visitors and access · revised August 2026",
+    "keywords": ["visitor", "guest", "check-in", "check in", "pass", "concierge", "reception", "lobby"]
+  },
+  {
+    "title": "Parcel room collection",
+    "content": "The secure parcel room is beside the lobby and is accessible to residents at all times with a building credential. Oversized or signature-required packages are released by the concierge between 7:00 AM and 10:00 PM.",
+    "source": "Northstar Residences Handbook · Packages and parcel room · revised August 2026",
+    "keywords": ["package", "parcel", "mailroom", "collect", "collection", "delivery notification", "signature"]
   },
   {
     "title": "Bicycle storage",
-    "content": "Secure bicycle storage is located on parking level P1 and is available from 5:30 AM to 11:00 PM. Bicycle-room access must be enabled on the occupant's tenant badge.",
-    "source": "Building Alpha Tenant Handbook · Commuter amenities · revised August 2026",
-    "keywords": ["bicycle", "bike", "cycle", "storage", "commuter"]
+    "content": "Secure resident bicycle storage is on parking level P1 and is available at all times. Bicycle-room access must be enabled on the resident's building credential by the concierge.",
+    "source": "Northstar Residences Handbook · Bicycle storage · revised August 2026",
+    "keywords": ["bicycle", "bike", "cycle", "storage", "parking", "commute"]
   },
   {
-    "title": "Wellness room",
-    "content": "The wellness room is Room 305 on Floor 3. It is available without a reservation when the occupancy indicator outside the room is green.",
-    "source": "Building Alpha Tenant Handbook · Wellness · revised August 2026",
-    "keywords": ["wellness", "wellness room", "room 305", "reservation"]
+    "title": "Resident lounges and roof terrace",
+    "content": "The Floor 2 resident lounge is open daily from 6:00 AM to midnight without a reservation. The Floor 10 sky lounge and roof terrace are open from 8:00 AM to 10:00 PM and require a resident reservation for private events.",
+    "source": "Northstar Residences Handbook · Shared lounges · revised August 2026",
+    "keywords": ["resident lounge", "sky lounge", "roof", "terrace", "reservation", "party", "event"]
   },
   {
-    "title": "Secure document recycling",
-    "content": "Confidential documents must be placed in the locked blue consoles located beside each floor's service core. Facilities empties the consoles through the approved shredding vendor.",
-    "source": "Building Alpha Operations Manual · Waste and recycling · revised August 2026",
-    "keywords": ["confidential", "document", "recycling", "shredding", "secure"]
+    "title": "Residential waste and recycling",
+    "content": "Bagged household waste and separated recycling go into the labeled chutes in each floor's refuse room. Cardboard must be flattened and placed in the recycling area beside the service elevator; hazardous materials must be taken to the concierge.",
+    "source": "Northstar Residences Operations Manual · Waste and recycling · revised August 2026",
+    "keywords": ["garbage", "trash", "waste", "recycling", "cardboard", "refuse", "hazardous"]
   }
 ]

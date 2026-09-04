@@ -9,10 +9,11 @@ type Props = {
 };
 
 const locationName = (id: string) => ({
-  "BLDG-A-F01-FITNESS": "Fitness Center · Floor 1",
-  "BLDG-A-F04-CONF-4B": "Conference Room 4B · Floor 4",
-  "BLDG-A-F07-EAST": "East Office Zone · Floor 7",
-  "BLDG-A-LOBBY": "Main Lobby · Ground",
+  "BLDG-A-F02-FITNESS": "Fitness Center · Floor 2",
+  "BLDG-A-F04-APT-4B": "Apartment 4B · Floor 4",
+  "BLDG-A-F04-CONF-4B": "Apartment 4B · Floor 4",
+  "BLDG-A-F07-EAST": "East Residential Wing · Floor 7",
+  "BLDG-A-LOBBY": "Main Lobby & Concierge · Floor 1",
 }[id] || id);
 
 const time = (value: string) => new Intl.DateTimeFormat("en-US", {
@@ -64,7 +65,7 @@ export function OverviewView({ tickets, metrics, live, onReview }: Props) {
       </section>
 
       <aside className={`overview-panel decision-detail ${primaryDecision ? "has-decision" : ""}`}>
-        {primaryDecision ? <><div className="decision-detail-head"><span>{primaryDecision.ticket_id}</span><b className={`priority-chip ${primaryDecision.priority}`}>{primaryDecision.priority}</b></div><h2>{primaryDecision.subject}</h2><p>{primaryDecision.requester} · {locationName(primaryDecision.location_id)}</p><div className="mini-progress"><i className="done" /><i className="done" /><i className="done" /><i className="current" /><i /></div><h3>Agent summary</h3><ul><li>Loaded occupant and location context</li><li>Reviewed linked building telemetry</li><li>Applied the autonomy policy</li><li>Prepared the recommended next action</li></ul><div className="recommended-action"><b>Recommended action</b><span>{primaryDecision.status === "needs_approval" ? "Approve qualified technician dispatch and continue automated verification." : "Provide the missing facility answer and reply to the requester."}</span></div><button onClick={() => onReview(primaryDecision)}>{primaryDecision.status === "needs_approval" ? "Review approval" : "Respond to request"}</button></> : <div className="decision-detail-clear"><span>✓</span><h2>Autopilot has this covered</h2><p>No consequential decisions are waiting for Maya.</p></div>}
+        {primaryDecision ? <><div className="decision-detail-head"><span>{primaryDecision.ticket_id}</span><b className={`priority-chip ${primaryDecision.priority}`}>{primaryDecision.priority}</b></div><h2>{primaryDecision.subject}</h2><p>{primaryDecision.requester} · {locationName(primaryDecision.location_id)}</p><div className="mini-progress"><i className="done" /><i className="done" /><i className="done" /><i className="current" /><i /></div><h3>Agent summary</h3><ul><li>Loaded resident and apartment context</li><li>Reviewed linked building telemetry</li><li>Applied the autonomy policy</li><li>Prepared the recommended next action</li></ul><div className="recommended-action"><b>Recommended action</b><span>{primaryDecision.status === "needs_approval" ? "Approve qualified technician dispatch and continue automated verification." : "Provide the missing facility answer and reply to the requester."}</span></div><button onClick={() => onReview(primaryDecision)}>{primaryDecision.status === "needs_approval" ? "Review approval" : "Respond to request"}</button></> : <div className="decision-detail-clear"><span>✓</span><h2>Autopilot has this covered</h2><p>No consequential decisions are waiting for Maya.</p></div>}
       </aside>
     </div>
 

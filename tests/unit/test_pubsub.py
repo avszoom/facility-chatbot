@@ -5,7 +5,7 @@ def test_publish_is_idempotent_and_delivery_is_acknowledged_once(system):
     first = system.message_bus.publish(
         topic="building.events",
         message_type="building.request.detected",
-        payload={"ticket_id": "TKT-IDEMPOTENT", "request": {"subject": "Gym hours", "description": "When does it close?", "requester": "Occupant", "location_id": "BLDG-A"}},
+        payload={"ticket_id": "TKT-IDEMPOTENT", "request": {"subject": "Gym hours", "description": "When does it close?", "requester": "Resident", "location_id": "BLDG-A"}},
         correlation_id="CORR-IDEMPOTENT",
         idempotency_key="BUILDING-IDEMPOTENT",
         message_id="MSG-IDEMPOTENT",

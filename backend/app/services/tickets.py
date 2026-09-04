@@ -111,31 +111,31 @@ class TicketService:
         self.repository.reset()
         building = LocalBuildingProvider(self.repository)
         building.reset()
-        building.inject_simulated_condition("comfort_drift", "BLDG-A-F04-CONF-4B", "TKT-1002")
+        building.inject_simulated_condition("comfort_drift", "BLDG-A-F04-APT-4B", "TKT-1002")
         building.inject_simulated_condition("electrical_overheat", "BLDG-A-F07-EAST", "TKT-1003")
         tickets = [
             self.create(
                 TicketCreate(
                     subject="What time does the gym close?",
-                    description="I want to use the fitness center after work. What are today’s hours?",
+                    description="I live in Apartment 5E and want to use the fitness center tonight. What are today’s hours?",
                     requester="Priya Shah",
-                    location_id="BLDG-A-F01-FITNESS",
+                    location_id="BLDG-A-F02-FITNESS",
                 ),
                 ticket_id="TKT-1001",
             ),
             self.create(
                 TicketCreate(
-                    subject="Conference room is too warm",
-                    description="Conference Room 4B feels hot during our client meeting. Can facilities help?",
+                    subject="Apartment 4B is too warm",
+                    description="My living room feels hot even though the thermostat is set correctly. Can building operations help?",
                     requester="Marcus Lee",
-                    location_id="BLDG-A-F04-CONF-4B",
+                    location_id="BLDG-A-F04-APT-4B",
                 ),
                 ticket_id="TKT-1002",
             ),
             self.create(
                 TicketCreate(
                     subject="Flickering lights and burning smell",
-                    description="Lights are flickering near the Floor 7 east offices and we smell hot plastic.",
+                    description="Corridor lights are flickering in the Floor 7 east residential wing and we smell hot plastic.",
                     requester="Elena Garcia",
                     location_id="BLDG-A-F07-EAST",
                 ),

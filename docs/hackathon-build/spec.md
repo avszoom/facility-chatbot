@@ -349,7 +349,7 @@ Open “What time does the gym close?” Show grounded answer, source citation, 
 
 ### Screen 3 — Safe change with proof
 
-Open “Conference room too warm.” Show telemetry, policy boundary, command before/after values, verification window, and automatic close.
+Open “Apartment 4B is too warm.” Show telemetry, policy boundary, command before/after values, verification window, and automatic close.
 
 ### Screen 4 — Meaningful human escalation
 

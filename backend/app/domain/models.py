@@ -49,7 +49,7 @@ class RiskTier(StrEnum):
 class TicketCreate(Model):
     subject: str = Field(min_length=3, max_length=120)
     description: str = Field(min_length=3, max_length=2000)
-    requester: str = Field(default="Occupant", min_length=2, max_length=80)
+    requester: str = Field(default="Resident", min_length=2, max_length=80)
     location_id: str = Field(default="BLDG-A", min_length=2, max_length=80)
     kind: TicketKind | None = None
 
@@ -214,7 +214,7 @@ class SimulationCustomRequest(Model):
     ] = "normal"
     subject: str = Field(min_length=3, max_length=120)
     description: str = Field(min_length=3, max_length=2000)
-    requester: str = Field(default="Building Occupant", min_length=2, max_length=80)
+    requester: str = Field(default="Building Resident", min_length=2, max_length=80)
     location_id: str = Field(default="BLDG-A", min_length=2, max_length=80)
 
 

@@ -474,7 +474,7 @@ class WorkflowService:
             status="proposed",
             before_state=telemetry,
             requested={"asset_id": asset["asset_id"], "trade": trade, "priority": "high", "procedure": procedure},
-            rationale="Correlated occupant and sensor evidence supports qualified inspection; the agent will not perform hazardous physical work.",
+            rationale="Correlated resident and sensor evidence supports qualified inspection; the agent will not perform hazardous physical work.",
             idempotency_key=f"DISPATCH-{ticket.ticket_id}",
             created_at=datetime.now(UTC),
         )

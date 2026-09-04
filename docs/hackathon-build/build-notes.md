@@ -1,5 +1,11 @@
 # Build Notes
 
+## 2026-09-04 — Residential tower conversion
+
+- Converted the digital twin into Northstar Residences, a ten-story, 132-apartment tower with apartment floors, penthouses, resident lounges, a gym, yoga studio, indoor pool, café, parcel room, and roof terrace.
+- Replaced the office-focused knowledge, example requests, sensor zones, maintenance history, policies, resident records, floor plans, and concierge language with one consistent residential operating model.
+- Added a versioned building-state migration so a backend restart adopts the residential sensor catalog without deleting the durable ticket and workflow history.
+
 ## 2026-09-03 — Manual-first request generation
 
 - Confirmed from durable message metadata that four unexpected requests came from the `synthetic_occupant` source at the configured 45-second cadence; the user-created request was separately identified as `receptionist_console`.

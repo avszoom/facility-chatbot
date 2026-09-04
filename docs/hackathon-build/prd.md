@@ -4,7 +4,7 @@
 
 ### Story 1.1 — Create a ticket
 
-As an occupant, I want to describe a building question or problem in ordinary language so that I do not need to know the correct department or form.
+As a resident, I want to describe a building question or problem in ordinary language so that I do not need to know the correct department or form.
 
 Acceptance criteria:
 
@@ -14,7 +14,7 @@ Acceptance criteria:
 
 ### Story 1.2 — Operate the queue
 
-As a facility manager, I want one queue sorted by urgency and SLA risk so I can see what the agent handled and what needs me.
+As a concierge, I want one queue sorted by urgency and SLA risk so I can see what the agent handled and what needs me.
 
 Acceptance criteria:
 
@@ -26,7 +26,7 @@ Acceptance criteria:
 
 ### Story 2.1 — Classify and prioritize
 
-As a facility manager, I want the agent to identify enquiry, service request, or incident and assign urgency with evidence.
+As a property manager, I want the agent to identify enquiry, service request, or incident and assign urgency with evidence.
 
 Acceptance criteria:
 
@@ -36,7 +36,7 @@ Acceptance criteria:
 
 ### Story 2.2 — Choose the next action
 
-As a facility manager, I want the agent to continue without supervision when policy permits.
+As a property manager, I want the agent to continue without supervision when policy permits.
 
 Acceptance criteria:
 
@@ -47,7 +47,7 @@ Acceptance criteria:
 
 ### Story 3.1 — Answer enquiries
 
-As an occupant, I want an authoritative answer with a source so I can trust it.
+As a resident, I want an authoritative answer with a source so I can trust it.
 
 Acceptance criteria:
 
@@ -57,7 +57,7 @@ Acceptance criteria:
 
 ### Story 3.2 — Apply a safe building change
 
-As a facility manager, I want low-risk service requests completed within an explicit policy boundary.
+As a property manager, I want low-risk apartment and amenity requests completed within an explicit policy boundary.
 
 Acceptance criteria:
 
@@ -69,7 +69,7 @@ Acceptance criteria:
 
 ### Story 4.1 — Ask for approval only when necessary
 
-As a facility manager, I want concise approval requests for consequential actions.
+As a property manager, I want concise approval requests for consequential actions.
 
 Acceptance criteria:
 
@@ -79,7 +79,7 @@ Acceptance criteria:
 
 ### Story 4.2 — Manage a long-running work order
 
-As a facility manager, I want the agent to coordinate technician work without requiring an open browser.
+As a property manager, I want the agent to coordinate technician work without requiring an open browser.
 
 Acceptance criteria:
 
@@ -101,7 +101,7 @@ Acceptance criteria:
 
 ### Story 5.1 — Verify before closing
 
-As a facility manager, I want independent evidence that the problem is fixed.
+As a property manager, I want independent evidence that the problem is fixed.
 
 Acceptance criteria:
 

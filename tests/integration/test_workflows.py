@@ -17,10 +17,10 @@ def run_agent_steps(system):
 def test_new_request_exposes_each_live_agent_phase(system):
     ticket = system.tickets.create(
         TicketCreate(
-            subject="Conference room is too warm",
-            description="Conference Room 4B feels hot during our client meeting.",
-            requester="Building Occupant",
-            location_id="BLDG-A-F04-CONF-4B",
+            subject="Apartment 4B is too warm",
+            description="The living room in Apartment 4B feels hot.",
+            requester="Building Resident",
+            location_id="BLDG-A-F04-APT-4B",
         )
     )
     assert ticket.status == TicketStatus.NEW
