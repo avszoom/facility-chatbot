@@ -9,7 +9,7 @@
 ## 2026-09-04 — Evidence-grounded incident automation
 
 - Fixed an orchestration defect that could substitute a correlated temperature condition for the model's cited electrical or air-quality evidence and then display hard-coded electrical values that were not observed.
-- Added safety-language normalization to the request-scenario console so a routine category or sensor accidentally left selected cannot downgrade a report containing fumes, smoke, burning, sparking, fire, or entrapment language.
+- Added transparent intake normalization so explicit floor, apartment, laundry, lobby, café, fitness, pool, parcel-room, or sky-lounge text can correct a stale form location, and a routine category or sensor accidentally left selected cannot downgrade a report containing fumes, smoke, burning, sparking, fire, or entrapment language. The originally selected values remain in the durable event for audit.
 - Localized incidents now create an idempotent qualified-technician work order automatically and remain visibly ongoing; shared or disruptive infrastructure work still requires approval.
 - Added a prominent work-order card with assignee, trade, location, procedure, progress, diagnosed cause, and completed repair. Simulated technician notes are specific enough to drive independent post-repair verification.
 

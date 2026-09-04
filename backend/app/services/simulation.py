@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+import re
 from typing import Any
 from uuid import uuid4
 
@@ -221,7 +222,36 @@ class BuildingSimulationService:
         state = self.status()
         requested_type = request_type
         requested_condition = condition_type
+        requested_location = request.location_id
         text = f"{request.subject} {request.description}".lower()
+        normalization_notes: list[str] = []
+        floor_match = re.search(r"\bfloor\s*(\d{1,2})\b", text)
+        location_floor_match = re.search(r"-F(\d{2})(?:-|$)", request.location_id)
+        floor = int(floor_match.group(1)) if floor_match else int(location_floor_match.group(1)) if location_floor_match else 1
+        apartment_match = re.search(r"\b(?:apartment|apt|flat)\s*(\d{1,2}[a-z])\b", text)
+        inferred_location = None
+        if apartment_match:
+            home = apartment_match.group(1).upper()
+            inferred_location = f"BLDG-A-F{int(home[:-1]):02d}-APT-{home}"
+        elif "laund" in text:
+            inferred_location = f"BLDG-A-F{floor:02d}-LAUNDRY-ROOM"
+        elif "sky lounge" in text:
+            inferred_location = "BLDG-A-F10-SKY-LOUNGE"
+        elif "pool" in text:
+            inferred_location = "BLDG-A-F02-INDOOR-POOL"
+        elif "fitness" in text or "gym" in text:
+            inferred_location = "BLDG-A-F02-FITNESS"
+        elif "cafe" in text or "café" in text:
+            inferred_location = "BLDG-A-F01-NORTHSTAR-CAFE"
+        elif "parcel room" in text or "mailroom" in text:
+            inferred_location = "BLDG-A-F01-PARCEL-ROOM"
+        elif "lobby" in text:
+            inferred_location = "BLDG-A-LOBBY"
+        if inferred_location and inferred_location != request.location_id:
+            request = request.model_copy(update={"location_id": inferred_location})
+            normalization_notes.append(
+                f"Explicit request text resolved the location from {requested_location} to {inferred_location}."
+            )
         safety_terms = ("burning", "smoke", "fume", "sparking", "trapped", "fire")
         electrical_terms = (
             "circuit",
@@ -240,6 +270,10 @@ class BuildingSimulationService:
                 if any(term in text for term in electrical_terms)
                 else "smoke_or_odor"
             )
+            if requested_type != request_type or requested_condition != condition_type:
+                normalization_notes.append(
+                    f"Safety language '{safety_override}' upgraded the request to an incident and matched {condition_type}."
+                )
         request = request.model_copy(update={"kind": request_type})
         event_type = {
             "enquiry": "resident_enquiry",
@@ -266,15 +300,8 @@ class BuildingSimulationService:
                     "source": "receptionist_console",
                     "requested_scenario_type": requested_type,
                     "requested_condition_type": requested_condition,
-                    "normalization": (
-                        f"Safety language '{safety_override}' upgraded the request to an incident and matched {condition_type}."
-                        if safety_override
-                        and (
-                            requested_type != request_type
-                            or requested_condition != condition_type
-                        )
-                        else None
-                    ),
+                    "requested_location_id": requested_location,
+                    "normalization": " ".join(normalization_notes) or None,
                 },
             },
             correlation_id=f"CORR-{ticket_id}",

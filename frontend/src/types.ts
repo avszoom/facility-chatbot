@@ -246,6 +246,7 @@ export interface PublishedRequest {
       };
       requested_scenario_type?: RequestType;
       requested_condition_type?: CustomRequestInput["condition_type"];
+      requested_location_id?: string;
       normalization?: string | null;
     };
   };

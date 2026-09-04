@@ -265,7 +265,7 @@ def test_safety_language_corrects_a_mismatched_console_scenario_and_dispatches(s
             "subject": "Fumes and a bad circuit smell on Floor 4",
             "description": "There are fumes and a bad circuit smell in the Floor 4 laundry room.",
             "requester": "Marcus Lee",
-            "location_id": "BLDG-A-F04-LAUNDRY-ROOM",
+            "location_id": "BLDG-A-F04-APT-4B",
         },
     )
 
@@ -276,6 +276,8 @@ def test_safety_language_corrects_a_mismatched_console_scenario_and_dispatches(s
     assert scenario["scenario_type"] == "incident"
     assert scenario["condition"]["condition"] == "electrical_overheat"
     assert scenario["condition"]["sensor_id"] == "PWR-04-01"
+    assert payload["request"]["location_id"] == "BLDG-A-F04-LAUNDRY-ROOM"
+    assert scenario["requested_location_id"] == "BLDG-A-F04-APT-4B"
     assert scenario["normalization"]
 
     for _ in range(3):
