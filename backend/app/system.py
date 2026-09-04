@@ -78,6 +78,7 @@ def build_system(settings: Settings | None = None) -> ApplicationSystem:
     tickets = TicketService(
         repository,
         events,
+        notifications,
         intake_delay_seconds=settings.intake_delay_seconds,
     )
     workflow = WorkflowService(

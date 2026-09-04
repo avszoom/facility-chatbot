@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from backend.app.domain.models import TicketCreate
 from backend.app.main import create_app
 
 
@@ -18,3 +19,72 @@ def test_system_endpoint_names_replaceable_providers(system):
     payload = TestClient(create_app(system)).get("/api/system").json()
     assert payload["portable_contracts"] is True
     assert payload["providers"]["persistence"] == "SQLiteOperationsRepository"
+
+
+def test_staff_can_answer_an_escalated_request_and_close_it(system):
+    client = TestClient(create_app(system))
+    ticket = system.tickets.create(
+        TicketCreate(
+            subject="Unexpected request",
+            description="Something unusual happened and I need help.",
+            requester="Priya Shah",
+            location_id="BLDG-A-LOBBY",
+        )
+    )
+    for _ in range(3):
+        system.workflow.process_due(limit=10)
+    assert system.tickets.detail(ticket.ticket_id).ticket.status == "escalated"
+
+    response = client.post(
+        f"/api/tickets/{ticket.ticket_id}/staff-response",
+        json={
+            "response": "Northstar Building A is a commercial office workplace.",
+            "actor": "Maya Roberts",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "resolved"
+
+    detail = client.get(f"/api/tickets/{ticket.ticket_id}").json()
+    assert detail["workflow"]["status"] == "completed"
+    assert detail["workflow"]["checkpoint"]["resolution"] == "staff_response"
+    assert [event["event_type"] for event in detail["events"]][-2:] == [
+        "staff.response_sent",
+        "ticket.resolved",
+    ]
+    assert detail["events"][-2]["payload"]["notification"]["channel"] == "ticket_conversation"
+
+    metrics = client.get("/api/metrics").json()
+    assert metrics["active"] == 0
+    assert metrics["escalated"] == 0
+    assert metrics["resolved"] == 1
+    assert metrics["autonomous_resolutions"] == 0
+
+    repeated = client.post(
+        f"/api/tickets/{ticket.ticket_id}/staff-response",
+        json={
+            "response": "Northstar Building A is a commercial office workplace.",
+            "actor": "Maya Roberts",
+        },
+    )
+    assert repeated.status_code == 200
+    assert len(system.repository.list_events(ticket.ticket_id)) == len(detail["events"])
+
+
+def test_building_type_question_is_answered_from_trusted_knowledge(system):
+    ticket = system.tickets.create(
+        TicketCreate(
+            subject="Is this an office building or residential?",
+            description="Please tell me what type of building this is.",
+            requester="Priya Shah",
+            location_id="BLDG-A-LOBBY",
+        )
+    )
+    for _ in range(3):
+        system.workflow.process_due(limit=10)
+
+    detail = system.tickets.detail(ticket.ticket_id)
+    assert detail.ticket.status == "resolved"
+    answer = next(event for event in detail.events if event.event_type == "message.sent" and "Source:" in event.summary)
+    assert "commercial office workplace" in answer.summary
+    assert "Property Profile" in answer.summary

@@ -24,7 +24,7 @@ ALLOWED_TRANSITIONS: dict[TicketStatus, set[TicketStatus]] = {
         TicketStatus.ESCALATED,
     },
     TicketStatus.RESOLVED: set(),
-    TicketStatus.ESCALATED: set(),
+    TicketStatus.ESCALATED: {TicketStatus.RESOLVED},
 }
 
 

@@ -2,6 +2,22 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
+
+
+STOP_WORDS = {
+    "about", "and", "building", "does", "from", "happened", "have", "help",
+    "need", "please", "question", "request", "something", "tell", "that", "there",
+    "this", "what", "when", "where", "with", "would",
+}
+
+
+def _tokens(value: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", value.lower())
+        if len(token) > 2 and token not in STOP_WORDS
+    }
 
 
 class LocalKnowledgeProvider:
@@ -12,11 +28,13 @@ class LocalKnowledgeProvider:
 
     def search(self, query: str) -> dict[str, str] | None:
         records = json.loads(self.path.read_text())
-        terms = {token.strip("?.,!").lower() for token in query.split() if len(token) > 2}
+        terms = _tokens(query)
+        if not terms:
+            return None
         scored = []
         for record in records:
-            haystack = f"{record['title']} {record['content']} {' '.join(record['keywords'])}".lower()
-            score = sum(term in haystack for term in terms)
+            haystack = f"{record['title']} {record['content']} {' '.join(record['keywords'])}"
+            score = len(terms & _tokens(haystack))
             if score:
                 scored.append((score, record))
         if not scored:

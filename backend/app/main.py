@@ -15,6 +15,7 @@ from backend.app.domain.models import (
     SimulationControl,
     SimulationCustomRequest,
     SimulationGenerateRequest,
+    StaffResponseRequest,
     Ticket,
     TicketCreate,
     TicketDetail,
@@ -199,6 +200,15 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         runtime.operations.process_due()
         return runtime.repository.get_ticket(ticket.ticket_id)
+
+    @api.post("/api/tickets/{ticket_id}/staff-response", response_model=Ticket)
+    def staff_response(ticket_id: str, request: StaffResponseRequest):
+        try:
+            return runtime.tickets.respond_to_escalation(ticket_id, request)
+        except KeyError:
+            raise missing(ticket_id) from None
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @api.post("/api/workspace/sample-requests", response_model=list[Ticket])
     @api.post("/api/demo/seed", response_model=list[Ticket], include_in_schema=False)

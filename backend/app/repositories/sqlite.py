@@ -588,11 +588,14 @@ class SQLiteOperationsRepository:
         resolved = [ticket for ticket in tickets if ticket.status == TicketStatus.RESOLVED]
         autonomous = [
             ticket for ticket in resolved
-            if not any(event.event_type == "approval.decided" for event in events[ticket.ticket_id])
+            if not any(
+                event.event_type in {"approval.decided", "staff.response_sent"}
+                for event in events[ticket.ticket_id]
+            )
         ]
         return DashboardMetrics(
             received=len(tickets),
-            active=sum(ticket.status not in {TicketStatus.RESOLVED, TicketStatus.ESCALATED} for ticket in tickets),
+            active=sum(ticket.status != TicketStatus.RESOLVED for ticket in tickets),
             resolved=len(resolved),
             autonomous_resolutions=len(autonomous),
             needs_approval=sum(ticket.status == TicketStatus.NEEDS_APPROVAL for ticket in tickets),

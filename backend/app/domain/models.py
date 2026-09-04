@@ -187,6 +187,11 @@ class ApprovalRequest(Model):
     reason: str = Field(default="", max_length=500)
 
 
+class StaffResponseRequest(Model):
+    response: str = Field(min_length=3, max_length=2000)
+    actor: str = Field(default="Maya Roberts", min_length=2, max_length=80)
+
+
 class SimulationControl(Model):
     running: bool
     interval_seconds: float = Field(ge=5, le=3600)

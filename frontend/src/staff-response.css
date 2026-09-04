@@ -1,0 +1,91 @@
+.staff-response {
+  display: grid;
+  gap: 12px;
+  margin-top: 13px;
+  padding: 14px;
+  background: #fff4f4;
+  border: 1px solid #efb7bb;
+  border-radius: 7px;
+}
+
+.staff-response > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.staff-response > div:first-child > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  color: #9d3038;
+  background: #fbdcdf;
+  border-radius: 50%;
+  font-weight: 700;
+  place-items: center;
+}
+
+.staff-response > div:first-child > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.staff-response b {
+  color: #76242a;
+  font-size: 10px;
+}
+
+.staff-response small {
+  margin-top: 3px;
+  color: #8c5b5f;
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.staff-response textarea {
+  width: 100%;
+  min-height: 82px;
+  padding: 10px 11px;
+  color: #26354b;
+  background: #fff;
+  border: 1px solid #d8a7ab;
+  border-radius: 5px;
+  outline: none;
+  resize: vertical;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.staff-response textarea:focus {
+  border-color: #d45660;
+  box-shadow: 0 0 0 3px #d4566018;
+}
+
+.staff-response-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.staff-response-actions button {
+  padding: 10px 14px;
+  color: #fff;
+  background: #1769e0;
+  border: 1px solid #1769e0;
+  border-radius: 6px;
+  font: 600 10px Manrope, sans-serif;
+}
+
+.staff-response-actions button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 680px) {
+  .staff-response-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from backend.app.domain.models import (
     ApprovalRequest,
+    StaffResponseRequest,
     Ticket,
     TicketCreate,
     TicketDetail,
@@ -17,6 +18,7 @@ from backend.app.domain.state_machine import assert_transition
 from backend.app.repositories.ports import OperationsRepository
 from backend.app.services.events import LocalEventBus
 from backend.app.tools.building import LocalBuildingProvider
+from backend.app.tools.ports import NotificationPort
 
 
 class TicketService:
@@ -24,11 +26,13 @@ class TicketService:
         self,
         repository: OperationsRepository,
         events: LocalEventBus,
+        notifications: NotificationPort,
         *,
         intake_delay_seconds: float = 0.8,
     ):
         self.repository = repository
         self.events = events
+        self.notifications = notifications
         self.intake_delay_seconds = intake_delay_seconds
 
     def _append(self, event: TicketEvent) -> None:
@@ -219,6 +223,82 @@ class TicketService:
                 },
                 version=ticket.version,
                 updated_at=now,
+            )
+        )
+        return ticket
+
+    def respond_to_escalation(self, ticket_id: str, request: StaffResponseRequest) -> Ticket:
+        ticket = self.repository.get_ticket(ticket_id)
+        if not ticket:
+            raise KeyError(ticket_id)
+
+        prior_response = next(
+            (
+                event
+                for event in self.repository.list_events(ticket_id)
+                if event.event_type == "staff.response_sent" and event.summary == request.response
+            ),
+            None,
+        )
+        if ticket.status == TicketStatus.RESOLVED and prior_response:
+            return ticket
+        if ticket.status != TicketStatus.ESCALATED:
+            raise ValueError("Ticket is not waiting for a staff response")
+
+        now = datetime.now(UTC)
+        notification = self.notifications.send(
+            ticket,
+            request.response,
+            "requester",
+            f"MSG-{ticket_id}-STAFF-RESPONSE",
+        )
+        assert_transition(ticket.status, TicketStatus.RESOLVED)
+        ticket.status = TicketStatus.RESOLVED
+        ticket.assigned_owner = request.actor
+        ticket.waiting_reason = None
+        ticket.wake_at = None
+        ticket.resolved_at = now
+        ticket.updated_at = now
+        ticket.version += 1
+        self.repository.save_ticket(ticket)
+        self._append(
+            TicketEvent(
+                event_id=f"EVT-{ticket_id}-STAFF-RESPONSE",
+                ticket_id=ticket_id,
+                actor=request.actor,
+                event_type="staff.response_sent",
+                summary=request.response,
+                payload={"notification": notification, "manual_resolution": True},
+                correlation_id=f"CORR-{ticket_id}",
+                created_at=now,
+            )
+        )
+        resolved_at = now + timedelta(microseconds=1)
+        self._append(
+            TicketEvent(
+                event_id=f"EVT-{ticket_id}-RESOLVED-BY-STAFF",
+                ticket_id=ticket_id,
+                actor=request.actor,
+                event_type="ticket.resolved",
+                summary="Request answered by facility staff and the requester was notified.",
+                payload={"resolution": "staff_response", "notification_delivered": notification["delivered"]},
+                correlation_id=f"CORR-{ticket_id}",
+                created_at=resolved_at,
+            )
+        )
+        self.repository.save_workflow_state(
+            WorkflowState(
+                workflow_id=f"WF-{ticket.ticket_id}",
+                ticket_id=ticket.ticket_id,
+                current_step="resolved",
+                status="completed",
+                checkpoint={
+                    "ticket_status": "resolved",
+                    "resolution": "staff_response",
+                    "actor": request.actor,
+                },
+                version=ticket.version,
+                updated_at=resolved_at,
             )
         )
         return ticket

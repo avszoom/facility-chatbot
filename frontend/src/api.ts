@@ -31,6 +31,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ approved, reason: approved ? "Approved in operations console" : "Operator declined dispatch" }),
     }),
+  respond: (id: string, response: string) =>
+    request<Ticket>(`/api/tickets/${id}/staff-response`, {
+      method: "POST",
+      body: JSON.stringify({ response, actor: "Maya Roberts" }),
+    }),
   processScheduled: (seconds = 60) => request<{ processed: number }>(`/api/workspace/process-scheduled?seconds=${seconds}`, { method: "POST" }),
   failVerification: (id: string) => request(`/api/workspace/verification-failure/${id}?enabled=true`, { method: "POST" }),
   system: () => request<{ environment: string; providers: Record<string, string> }>("/api/system"),

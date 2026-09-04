@@ -22,7 +22,7 @@ const time = (value: string) => new Intl.DateTimeFormat("en-US", {
 
 const nextAction = (ticket: Ticket) => {
   if (ticket.status === "needs_approval") return "Review approval";
-  if (ticket.status === "escalated") return "Review exception";
+  if (ticket.status === "escalated") return "Send staff response";
   if (ticket.status === "waiting_technician") return "Await completion";
   if (ticket.status === "waiting_verification") return "Verify outcome";
   if (ticket.status === "resolved") return "Completed";
@@ -36,7 +36,7 @@ export function OverviewView({ tickets, metrics, live, onReview }: Props) {
   const autonomyRate = live.impact.autonomy_rate;
   const primaryDecision = needsYou[0];
   const active = tickets.filter((ticket) => !["resolved", "escalated"].includes(ticket.status)).slice(0, 7);
-  const otherOpen = Math.max(0, metrics.active - needsYou.filter((ticket) => ticket.status !== "escalated").length);
+  const otherOpen = Math.max(0, metrics.active - needsYou.length);
 
   return <section className="overview-view">
     <section className="overview-kpis">
@@ -44,7 +44,7 @@ export function OverviewView({ tickets, metrics, live, onReview }: Props) {
       <article><span className="overview-icon green">✓</span><small>Handled automatically</small><strong>{metrics.autonomous_resolutions}</strong><em>{autonomyRate}% of resolved work</em></article>
       <article><span className="overview-icon violet">⌁</span><small>Agent working</small><strong>{agentWorking.length}</strong><em>Parallel workflows</em></article>
       <article><span className="overview-icon amber">◷</span><small>Waiting externally</small><strong>{waitingExternal.length}</strong><em>Technician or resident</em></article>
-      <article><span className="overview-icon red">!</span><small>Needs your decision</small><strong>{needsYou.length}</strong><em>Only consequential work</em></article>
+      <article><span className="overview-icon red">!</span><small>Needs your attention</small><strong>{needsYou.length}</strong><em>Approval or staff reply</em></article>
       <article><span className="overview-icon green">↻</span><small>Human touches avoided</small><strong>{metrics.human_touches_saved}</strong><em>Updates and coordination</em></article>
     </section>
 
@@ -59,12 +59,12 @@ export function OverviewView({ tickets, metrics, live, onReview }: Props) {
 
       <section className="overview-panel autonomy-panel">
         <div className="overview-panel-head"><div><h2>Autopilot at a glance</h2><p>What the operations service is handling for you</p></div></div>
-        <div className="autonomy-chart"><div className="autonomy-ring" style={{ background: `conic-gradient(#38c986 ${autonomyRate * 3.6}deg, #e9eef4 0deg)` }}><span><b>{autonomyRate}%</b><small>autonomy rate</small></span></div><dl><div><dt><i className="green" />Handled automatically</dt><dd>{metrics.autonomous_resolutions}</dd></div><div><dt><i className="violet" />Agent working</dt><dd>{agentWorking.length}</dd></div><div><dt><i className="amber" />Waiting externally</dt><dd>{waitingExternal.length}</dd></div><div><dt><i className="red" />Needs your decision</dt><dd>{needsYou.length}</dd></div></dl></div>
+        <div className="autonomy-chart"><div className="autonomy-ring" style={{ background: `conic-gradient(#38c986 ${autonomyRate * 3.6}deg, #e9eef4 0deg)` }}><span><b>{autonomyRate}%</b><small>autonomy rate</small></span></div><dl><div><dt><i className="green" />Handled automatically</dt><dd>{metrics.autonomous_resolutions}</dd></div><div><dt><i className="violet" />Agent working</dt><dd>{agentWorking.length}</dd></div><div><dt><i className="amber" />Waiting externally</dt><dd>{waitingExternal.length}</dd></div><div><dt><i className="red" />Needs your attention</dt><dd>{needsYou.length}</dd></div></dl></div>
         <div className="autonomy-callout"><b>{autonomyRate}% handled without concierge intervention</b><span>Autopilot keeps routine work moving in the background.</span></div>
       </section>
 
       <aside className={`overview-panel decision-detail ${primaryDecision ? "has-decision" : ""}`}>
-        {primaryDecision ? <><div className="decision-detail-head"><span>{primaryDecision.ticket_id}</span><b className={`priority-chip ${primaryDecision.priority}`}>{primaryDecision.priority}</b></div><h2>{primaryDecision.subject}</h2><p>{primaryDecision.requester} · {locationName(primaryDecision.location_id)}</p><div className="mini-progress"><i className="done" /><i className="done" /><i className="done" /><i className="current" /><i /></div><h3>Agent summary</h3><ul><li>Loaded occupant and location context</li><li>Reviewed linked building telemetry</li><li>Applied the autonomy policy</li><li>Prepared the recommended next action</li></ul><div className="recommended-action"><b>Recommended action</b><span>{primaryDecision.status === "needs_approval" ? "Approve qualified technician dispatch and continue automated verification." : "Review the exception and choose the appropriate facility owner."}</span></div><button onClick={() => onReview(primaryDecision)}>Review decision</button></> : <div className="decision-detail-clear"><span>✓</span><h2>Autopilot has this covered</h2><p>No consequential decisions are waiting for Maya.</p></div>}
+        {primaryDecision ? <><div className="decision-detail-head"><span>{primaryDecision.ticket_id}</span><b className={`priority-chip ${primaryDecision.priority}`}>{primaryDecision.priority}</b></div><h2>{primaryDecision.subject}</h2><p>{primaryDecision.requester} · {locationName(primaryDecision.location_id)}</p><div className="mini-progress"><i className="done" /><i className="done" /><i className="done" /><i className="current" /><i /></div><h3>Agent summary</h3><ul><li>Loaded occupant and location context</li><li>Reviewed linked building telemetry</li><li>Applied the autonomy policy</li><li>Prepared the recommended next action</li></ul><div className="recommended-action"><b>Recommended action</b><span>{primaryDecision.status === "needs_approval" ? "Approve qualified technician dispatch and continue automated verification." : "Provide the missing facility answer and reply to the requester."}</span></div><button onClick={() => onReview(primaryDecision)}>{primaryDecision.status === "needs_approval" ? "Review approval" : "Respond to request"}</button></> : <div className="decision-detail-clear"><span>✓</span><h2>Autopilot has this covered</h2><p>No consequential decisions are waiting for Maya.</p></div>}
       </aside>
     </div>
 

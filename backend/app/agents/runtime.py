@@ -129,7 +129,7 @@ class DeterministicAgentRuntime:
                 diagnosis="The location temperature sensor is the relevant evidence for the comfort complaint.",
                 **common,
             )
-        if any(
+        if context.get("knowledge_result") or any(
             term in text
             for term in (
                 "when", "what time", "hours", "open", "close", "gym", "fitness",
