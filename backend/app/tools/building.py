@@ -15,7 +15,7 @@ DEFAULT_BUILDING = {
             "name": "Conference Room 4B VAV",
             "type": "hvac_zone",
             "location_id": "BLDG-A-F04-CONF-4B",
-            "temperature_f": 77.2,
+            "temperature_f": 72.7,
             "setpoint_f": 72.0,
             "target_temperature_f": 72.5,
             "status": "operational",
@@ -25,25 +25,24 @@ DEFAULT_BUILDING = {
             "name": "Floor 7 Lighting Distribution Panel",
             "type": "electrical_panel",
             "location_id": "BLDG-A-F07-ELEC-7A",
-            "cabinet_temperature_f": 126.4,
-            "current_amps": 58.1,
-            "status": "fault",
-            "fault": "heat-damaged feeder connection",
+            "cabinet_temperature_f": 84.2,
+            "current_amps": 30.4,
+            "status": "operational",
         },
     },
     "history": {
         "AHU-ZONE-4B": [
-            {"minutes_ago": 30, "temperature_f": 75.1, "setpoint_f": 72.0},
-            {"minutes_ago": 15, "temperature_f": 76.3, "setpoint_f": 72.0},
-            {"minutes_ago": 0, "temperature_f": 77.2, "setpoint_f": 72.0},
+            {"minutes_ago": 30, "temperature_f": 72.4, "setpoint_f": 72.0},
+            {"minutes_ago": 15, "temperature_f": 72.6, "setpoint_f": 72.0},
+            {"minutes_ago": 0, "temperature_f": 72.7, "setpoint_f": 72.0},
         ],
         "ELEC-PNL-7A": [
-            {"minutes_ago": 30, "cabinet_temperature_f": 88.0, "current_amps": 31.2},
-            {"minutes_ago": 15, "cabinet_temperature_f": 104.8, "current_amps": 45.0},
-            {"minutes_ago": 0, "cabinet_temperature_f": 126.4, "current_amps": 58.1},
+            {"minutes_ago": 30, "cabinet_temperature_f": 82.6, "current_amps": 29.8},
+            {"minutes_ago": 15, "cabinet_temperature_f": 83.7, "current_amps": 30.1},
+            {"minutes_ago": 0, "cabinet_temperature_f": 84.2, "current_amps": 30.4},
         ],
     },
-    "updated_at": "seed",
+    "updated_at": None,
 }
 
 
@@ -62,6 +61,9 @@ class LocalBuildingProvider:
 
     def _state(self) -> dict[str, Any]:
         return self.repository.get_state(self.STATE_KEY) or deepcopy(DEFAULT_BUILDING)
+
+    def snapshot(self) -> dict[str, Any]:
+        return deepcopy(self._state())
 
     def asset_at(self, location_id: str, asset_type: str | None = None) -> dict[str, Any] | None:
         assets = self._state()["assets"].values()

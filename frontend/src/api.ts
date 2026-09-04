@@ -1,4 +1,4 @@
-import type { LiveOperations, Metrics, Ticket, TicketDetail } from "./types";
+import type { CustomRequestInput, LiveOperations, Metrics, PublishedRequest, Ticket, TicketDetail } from "./types";
 
 const BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
 
@@ -19,6 +19,8 @@ export const api = {
   simulationPulse: () => request<{ message_id: string }>("/api/simulation/pulse", { method: "POST" }),
   generateRequests: (payload: { count: number; scenario_type: "all" | "enquiry" | "service_request" | "incident" }) =>
     request<Array<{ message_id: string }>>("/api/simulation/generate", { method: "POST", body: JSON.stringify(payload) }),
+  publishRequest: (payload: CustomRequestInput) =>
+    request<PublishedRequest>("/api/simulation/request", { method: "POST", body: JSON.stringify(payload) }),
   configureSimulation: (payload: { running: boolean; interval_seconds: number }) =>
     request<LiveOperations["simulation"]>("/api/simulation/control", { method: "POST", body: JSON.stringify(payload) }),
   loadSampleRequests: () => request<Ticket[]>("/api/workspace/sample-requests", { method: "POST" }),

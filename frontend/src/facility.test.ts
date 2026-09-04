@@ -9,6 +9,6 @@ describe("facility digital twin data", () => {
       expect(sensors.filter((sensor) => sensor.floor === floor.number)).toHaveLength(5);
     }
     expect(totalOccupancy).toBeLessThan(totalCapacity);
-    expect(sensors.some((sensor) => sensor.state === "Critical")).toBe(true);
+    expect(sensors.every((sensor) => sensor.state === "Normal")).toBe(true);
   });
 });

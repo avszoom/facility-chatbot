@@ -13,6 +13,7 @@ from backend.app.domain.models import (
     ApprovalRequest,
     PubSubMessage,
     SimulationControl,
+    SimulationCustomRequest,
     SimulationGenerateRequest,
     Ticket,
     TicketCreate,
@@ -69,6 +70,7 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
         )[:30]
         return {
             "simulation": runtime.simulation.status(),
+            "building": runtime.building.snapshot(),
             "agent": {
                 "status": "online",
                 "runtime": runtime.agent.name,
@@ -140,6 +142,19 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
         return runtime.simulation.generate_batch(
             count=request.count,
             scenario_type=request.scenario_type,
+        )
+
+    @api.post("/api/simulation/request", response_model=PubSubMessage, status_code=202)
+    def simulation_request(request: SimulationCustomRequest) -> PubSubMessage:
+        return runtime.simulation.publish_request(
+            TicketCreate(
+                subject=request.subject,
+                description=request.description,
+                requester=request.requester,
+                location_id=request.location_id,
+                kind=request.request_type,
+            ),
+            request_type=request.request_type,
         )
 
     @api.get("/api/tickets", response_model=list[Ticket])

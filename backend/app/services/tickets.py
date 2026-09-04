@@ -105,7 +105,10 @@ class TicketService:
 
     def seed_demo(self) -> list[Ticket]:
         self.repository.reset()
-        LocalBuildingProvider(self.repository).reset()
+        building = LocalBuildingProvider(self.repository)
+        building.reset()
+        building.inject_simulated_condition("comfort_drift")
+        building.inject_simulated_condition("electrical_overheat")
         tickets = [
             self.create(
                 TicketCreate(

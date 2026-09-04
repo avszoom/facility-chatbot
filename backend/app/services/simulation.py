@@ -194,6 +194,74 @@ class BuildingSimulationService:
                 messages.append(message)
         return messages
 
+    def publish_request(
+        self,
+        request: TicketCreate,
+        *,
+        request_type: str,
+        now: datetime | None = None,
+    ) -> PubSubMessage:
+        """Publish a receptionist-authored request through the building event boundary."""
+        current = now or datetime.now(UTC)
+        state = self.status()
+        event_type = {
+            "enquiry": "occupant_enquiry",
+            "service_request": "occupant_service_request",
+            "incident": "occupant_incident",
+        }[request_type]
+        condition_name = {
+            "enquiry": "normal",
+            "service_request": "comfort_drift",
+            "incident": "electrical_overheat",
+        }[request_type]
+        condition = self.building.inject_simulated_condition(condition_name)
+        ticket_id = f"TKT-{uuid4().hex[:6].upper()}"
+        message = self.message_bus.publish(
+            topic="building.events",
+            message_type="building.request.detected",
+            payload={
+                "ticket_id": ticket_id,
+                "request": request.model_dump(mode="json"),
+                "scenario": {
+                    "type": event_type,
+                    "scenario_type": request_type,
+                    "condition": condition,
+                    "source": "receptionist_console",
+                },
+            },
+            correlation_id=f"CORR-{ticket_id}",
+            idempotency_key=f"BUILDING-EVENT-{ticket_id}",
+            message_id=f"MSG-BUILDING-{ticket_id}",
+            available_at=current,
+        )
+        next_state = {
+            "status": "online" if state.get("running", self.enabled) else "paused",
+            "running": bool(state.get("running", self.enabled)),
+            "interval_seconds": float(state["interval_seconds"]),
+            "sequence": int(state.get("sequence", 0)),
+            "issues_generated": int(state.get("issues_generated", 0)) + 1,
+            "duplicates_suppressed": int(state.get("duplicates_suppressed", 0)),
+            "last_tick": current.isoformat(),
+            "next_tick": state.get("next_tick"),
+            "last_event": {
+                "type": event_type,
+                "message_id": message.message_id,
+                "ticket_id": ticket_id,
+                "subject": request.subject,
+                "location_id": request.location_id,
+                "condition": condition,
+            },
+        }
+        self.repository.set_state(self.STATE_KEY, next_state)
+        self.events.publish(
+            {
+                "type": "simulation.request_published",
+                "ticket_id": ticket_id,
+                "request_type": request_type,
+            }
+        )
+        return message
+
     def tick(
         self,
         *,

@@ -1,9 +1,9 @@
 import { Canvas } from "@react-three/fiber";
 import { ContactShadows, Grid, OrbitControls, RoundedBox } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
-import { floors } from "./facility";
+import type { FloorRecord } from "./facility";
 
-function Tower({ selectedFloor, onSelect }: { selectedFloor: number; onSelect: (floor: number) => void }) {
+function Tower({ floors, selectedFloor, onSelect }: { floors: FloorRecord[]; selectedFloor: number; onSelect: (floor: number) => void }) {
   const ordered = [...floors].sort((a, b) => a.number - b.number);
   return <group position={[0, -2.65, 0]} rotation={[0, -0.32, 0]}>
     {ordered.map((floor, index) => {
@@ -32,7 +32,7 @@ function Tower({ selectedFloor, onSelect }: { selectedFloor: number; onSelect: (
   </group>;
 }
 
-export function BuildingScene({ selectedFloor, onSelect }: { selectedFloor: number; onSelect: (floor: number) => void }) {
+export function BuildingScene({ floors, selectedFloor, onSelect }: { floors: FloorRecord[]; selectedFloor: number; onSelect: (floor: number) => void }) {
   return <Canvas shadows camera={{ position: [8.4, 5.5, 10.5], fov: 35 }} dpr={[1, 1.75]}>
     <color attach="background" args={["#05080d"]} />
     <fog attach="fog" args={["#05080d", 15, 27]} />
@@ -40,7 +40,7 @@ export function BuildingScene({ selectedFloor, onSelect }: { selectedFloor: numb
     <directionalLight position={[5, 10, 7]} intensity={2.3} color="#d4ecff" castShadow />
     <pointLight position={[-6, 4, 3]} intensity={15} color="#1769e0" distance={15} />
     <pointLight position={[6, 1, -4]} intensity={10} color="#1fd9bd" distance={13} />
-    <Tower selectedFloor={selectedFloor} onSelect={onSelect} />
+    <Tower floors={floors} selectedFloor={selectedFloor} onSelect={onSelect} />
     <Grid position={[0, -3.05, 0]} args={[22, 22]} cellSize={.6} cellThickness={.45} cellColor="#17314a" sectionSize={3} sectionThickness={.8} sectionColor="#245278" fadeDistance={18} fadeStrength={1.5} infiniteGrid />
     <ContactShadows position={[0, -3, 0]} opacity={.7} scale={14} blur={2.2} far={8} />
     <OrbitControls makeDefault enablePan={false} minDistance={8} maxDistance={19} minPolarAngle={Math.PI / 4.8} maxPolarAngle={Math.PI / 2.15} target={[0, -.1, 0]} />

@@ -192,6 +192,14 @@ class SimulationGenerateRequest(Model):
     scenario_type: Literal["all", "enquiry", "service_request", "incident"] = "all"
 
 
+class SimulationCustomRequest(Model):
+    request_type: Literal["enquiry", "service_request", "incident"]
+    subject: str = Field(min_length=3, max_length=120)
+    description: str = Field(min_length=3, max_length=2000)
+    requester: str = Field(default="Building Occupant", min_length=2, max_length=80)
+    location_id: str = Field(default="BLDG-A", min_length=2, max_length=80)
+
+
 class TicketDetail(Model):
     ticket: Ticket
     events: list[TicketEvent]

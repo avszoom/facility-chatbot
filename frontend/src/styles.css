@@ -218,10 +218,55 @@
 .generator-latest small { color: #4d7f99; font-size: 6px; font-weight: 800; letter-spacing: .12em; }
 .generator-latest b { color: #bfd2de; font-size: 8px; }
 .generator-latest span { color: #5d7486; font-size: 6px; }
+.generator-latest em { width: max-content; margin-top: 5px; padding: 3px 6px; color: #73d5a9; background: #0c271e; border: 1px solid #1d513d; border-radius: 10px; font-size: 6px; font-style: normal; text-transform: capitalize; }
+.generator-latest em.alarm { color: #ffae8a; background: #2b1713; border-color: #653225; }
+.request-scenario-layout { grid-template-columns: repeat(12,minmax(0,1fr)); }
+.request-composer { grid-column: span 6; }
+.request-lifecycle,.generator-observability { grid-column: span 3; }
+.batch-controls { grid-column: span 7; }
+.cadence-controls { grid-column: span 5; }
+.generator-card textarea { width: 100%; padding: 10px; box-sizing: border-box; resize: vertical; color: #d7e5ee; background: #080e14; border: 1px solid #233644; border-radius: 5px; outline: none; font: inherit; line-height: 1.55; }
+.generator-card textarea:focus { border-color: #278ccb; box-shadow: 0 0 0 2px rgba(39,140,203,.12); }
+.request-type-picker { margin: 0; padding: 0; border: 0; }
+.request-type-picker legend { margin-bottom: 7px; color: #8fa3b1; font-size: 7px; font-weight: 700; }
+.request-type-picker > div { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; }
+.request-type-picker button { display: flex; min-height: 45px; padding: 8px 9px; flex-direction: column; gap: 3px; color: #8095a5; background: #091018; border: 1px solid #21323e; border-radius: 5px; text-align: left; }
+.request-type-picker button b { color: #a9bac7; font-size: 8px; }
+.request-type-picker button span { font-size: 6px; }
+.request-type-picker button.active { background: #0d2332; border-color: #268bc2; box-shadow: inset 0 0 0 1px #145777; }
+.request-type-picker button.active b { color: #75d2ff; }
+.request-type-explanation { display: flex; min-height: 34px; margin-top: 8px; padding: 8px 10px; box-sizing: border-box; flex-direction: column; gap: 2px; background: #0a161f; border-left: 2px solid #279bd9; }
+.request-type-explanation b { color: #a8d9f2; font-size: 7px; }
+.request-type-explanation span { color: #667f91; font-size: 6px; line-height: 1.4; }
+.generator-form-grid { display: grid; grid-template-columns: 1fr 1.35fr; gap: 9px; }
+.request-receipt { display: grid; grid-template-columns: 24px 1fr; gap: 9px; margin-top: 10px; padding: 10px; color: #718799; background: #0a2019; border: 1px solid #1f5d43; border-radius: 5px; }
+.request-receipt > span { display: grid; width: 22px; height: 22px; color: #08130f; background: #45d499; border-radius: 50%; place-items: center; font-size: 8px; font-weight: 900; }
+.request-receipt b { color: #a9e5ca; font-size: 8px; }
+.request-receipt p { margin: 3px 0 7px; font-size: 6px; line-height: 1.45; }
+.request-receipt strong { color: #6bc8ef; }
+.request-receipt div div { display: flex; gap: 6px; }
+.request-receipt button { padding: 5px 7px; color: #7dcdf1; background: #10283a; border: 1px solid #245572; border-radius: 4px; font-size: 6px; }
+.world-effect { display: flex; padding: 10px; flex-direction: column; gap: 5px; background: #0b1c26; border: 1px solid #1c3c50; border-radius: 5px; }
+.world-effect small { color: #4c819d; font-size: 6px; font-weight: 800; letter-spacing: .1em; }
+.world-effect b { color: #b7cfdd; font-size: 7px; line-height: 1.45; }
+.world-effect.service_request,.world-effect.incident { background: #251713; border-color: #583027; }
+.world-effect.incident { background: #291214; border-color: #702e32; }
+.alarm-chip { width: max-content; color: #ff9d78; font-size: 6px; }
+.request-lifecycle ol { position: relative; display: flex; margin: 13px 0 0; padding: 0; flex-direction: column; gap: 10px; list-style: none; }
+.request-lifecycle ol:before { position: absolute; top: 9px; bottom: 10px; left: 9px; width: 1px; content: ""; background: #203b4d; }
+.request-lifecycle li { position: relative; display: grid; grid-template-columns: 19px 1fr; gap: 8px; }
+.request-lifecycle li i { z-index: 1; display: grid; width: 19px; height: 19px; color: #70cfff; background: #10293a; border: 1px solid #286386; border-radius: 50%; place-items: center; font-size: 6px; font-style: normal; font-weight: 800; }
+.request-lifecycle li div { display: flex; padding-top: 1px; flex-direction: column; gap: 2px; }
+.request-lifecycle li b { color: #afc1cd; font-size: 7px; }
+.request-lifecycle li span { color: #5f7586; font-size: 6px; line-height: 1.45; }
+.batch-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; }
+.batch-row label { margin-top: 0; }
 .app-nav nav button.generator-nav { margin-top: 7px; padding-block: 8px; color: #7693aa; background: #0e1d32; border: 1px solid #203753; font-size: 10px; }
 .app-nav nav button.generator-nav.active { color: #fff; background: #183759; border-color: #2f5d87; }
 @media(max-width:1050px){.generator-layout{grid-template-columns:1fr 1fr}.generator-observability{grid-column:1/-1}}
 @media(max-width:720px){.generator-view{padding:14px}.generator-heading{flex-direction:column}.generator-layout{grid-template-columns:1fr}.generator-observability{grid-column:auto}}
+@media(max-width:1050px){.request-scenario-layout{grid-template-columns:1fr 1fr}.request-composer{grid-column:1/-1}.request-lifecycle,.generator-observability,.batch-controls,.cadence-controls{grid-column:auto}}
+@media(max-width:720px){.request-scenario-layout{grid-template-columns:1fr}.request-composer,.request-lifecycle,.generator-observability,.batch-controls,.cadence-controls{grid-column:auto}.generator-form-grid,.batch-row{grid-template-columns:1fr}.request-type-picker>div{grid-template-columns:1fr}}
 .world-pulse { display: grid; grid-template-columns: 150px 1fr; gap: 20px; padding: 20px; align-items: center; }
 .radar { position: relative; display: grid; width: 145px; height: 145px; place-items: center; background: radial-gradient(circle, #183e4b 0 3%, transparent 4% 28%, #193645 29% 30%, transparent 31% 54%, #193645 55% 56%, transparent 57%), conic-gradient(from 0deg, transparent 0 78%, #27b8e333 88%, transparent 100%); border: 1px solid #24404f; border-radius: 50%; overflow: hidden; }
 .radar:after { position: absolute; width: 50%; height: 1px; content: ""; background: linear-gradient(90deg, #3dcdf4, transparent); transform-origin: right; animation: radar 3s linear infinite; }

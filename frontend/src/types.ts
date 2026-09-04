@@ -80,7 +80,7 @@ export interface TicketDetail {
     status: "running" | "waiting" | "completed" | "failed";
     checkpoint: Record<string, unknown>;
     version: number;
-    updated_at: string;
+    updated_at: string | null;
   } | null;
 }
 
@@ -106,6 +106,23 @@ export interface LiveOperations {
       location_id: string;
       condition: { condition: string; updated_at: string };
     } | null;
+  };
+  building: {
+    assets: Record<string, {
+      asset_id: string;
+      name: string;
+      type: string;
+      location_id: string;
+      status: string;
+      temperature_f?: number;
+      setpoint_f?: number;
+      target_temperature_f?: number;
+      cabinet_temperature_f?: number;
+      current_amps?: number;
+      fault?: string;
+    }>;
+    history: Record<string, Array<Record<string, number>>>;
+    updated_at: string;
   };
   agent: {
     status: string;
@@ -136,5 +153,30 @@ export interface LiveOperations {
     autonomy_rate: number;
     verified_resolutions: number;
     waiting_external: number;
+  };
+}
+
+export type RequestType = "enquiry" | "service_request" | "incident";
+
+export interface CustomRequestInput {
+  request_type: RequestType;
+  subject: string;
+  description: string;
+  requester: string;
+  location_id: string;
+}
+
+export interface PublishedRequest {
+  message_id: string;
+  topic: string;
+  correlation_id: string;
+  payload: {
+    ticket_id: string;
+    request: Omit<CustomRequestInput, "request_type"> & { kind: RequestType };
+    scenario: {
+      type: string;
+      scenario_type: RequestType;
+      source: string;
+    };
   };
 }
