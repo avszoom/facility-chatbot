@@ -142,6 +142,7 @@ def test_request_type_injects_correlated_building_condition(system):
             kind="service_request",
         ),
         request_type="service_request",
+        condition_type="temperature_high",
     )
     assert system.building.telemetry("AHU-ZONE-4B")["temperature_f"] == 77.2
 
@@ -154,5 +155,35 @@ def test_request_type_injects_correlated_building_condition(system):
             kind="incident",
         ),
         request_type="incident",
+        condition_type="electrical_overheat",
     )
     assert system.building.telemetry("ELEC-PNL-7A")["status"] == "fault"
+
+
+def test_floor_five_pantry_odor_correlates_ticket_sensor_and_agent(system):
+    client = TestClient(create_app(system))
+    published = client.post(
+        "/api/simulation/request",
+        json={
+            "request_type": "incident",
+            "condition_type": "smoke_or_odor",
+            "subject": "Burning smell in the Floor 5 pantry",
+            "description": "There is a strong burning smell in the pantry and it is getting worse.",
+            "requester": "Building Occupant",
+            "location_id": "BLDG-A-F05-PANTRY",
+        },
+    )
+    assert published.status_code == 202
+    ticket_id = published.json()["payload"]["ticket_id"]
+    snapshot = system.building.snapshot()
+    alarm = snapshot["sensor_overrides"]["VOC-05-01"]
+    assert alarm["area"] == "Pantry"
+    assert alarm["state"] == "Critical"
+    assert snapshot["active_conditions"][ticket_id]["sensor_id"] == "VOC-05-01"
+
+    for _ in range(4):
+        system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=10)
+    detail = system.tickets.detail(ticket_id)
+    assert detail.ticket.status == "needs_approval"
+    assert detail.actions[0].requested["asset_id"] == "VOC-05-01"
+    assert detail.actions[0].requested["trade"] == "indoor_air_quality"

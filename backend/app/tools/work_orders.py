@@ -25,6 +25,11 @@ class LocalWorkOrderProvider:
         existing = self.repository.get_work_order_for_ticket(ticket.ticket_id)
         if existing:
             return existing
+        technician = {
+            "electrical": "Maya Chen · Electrical",
+            "indoor_air_quality": "Jordan Brooks · Environmental Services",
+            "hvac": "Sam Rivera · HVAC",
+        }.get(trade, "Alex Morgan · Facilities")
         order = WorkOrder(
             work_order_id=f"WO-{ticket.ticket_id.removeprefix('TKT-')}",
             ticket_id=ticket.ticket_id,
@@ -33,7 +38,7 @@ class LocalWorkOrderProvider:
             trade=trade,
             priority=ticket.priority,
             procedure=procedure,
-            technician="Maya Chen · Electrical",
+            technician=technician,
             status="in_progress",
             requested_at=datetime.now(UTC),
             due_at=due_at,

@@ -28,7 +28,7 @@ class ActionPolicy:
                     "Occupied-zone setpoint is inside the approved 68–75°F range",
                 )
             return PolicyDecision(RiskTier.FORBIDDEN, "HVAC-SP-900", "Setpoint is outside the equipment policy")
-        if action in {"dispatch_electrical_technician", "reset_critical_equipment"}:
+        if action in {"dispatch_electrical_technician", "dispatch_safety_technician", "reset_critical_equipment"}:
             return PolicyDecision(
                 RiskTier.APPROVAL_REQUIRED,
                 "OPS-APPROVAL-010",

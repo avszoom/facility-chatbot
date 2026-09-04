@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
 
+import { floors } from "./facility";
 import type { CustomRequestInput, LiveOperations, PublishedRequest, RequestType } from "./types";
 
 type ScenarioType = "all" | RequestType;
+type ConditionType = CustomRequestInput["condition_type"];
 
 type Props = {
   live: LiveOperations;
@@ -21,60 +23,83 @@ type RequestPreset = {
   subject: string;
   description: string;
   requester: string;
-  locationId: string;
-  worldEffect: string;
+  floor: number;
+  room: string;
+  condition: ConditionType;
   agentOutcome: string;
 };
 
 const requestPresets: Record<RequestType, RequestPreset> = {
   enquiry: {
-    label: "Knowledge enquiry",
-    shortLabel: "Knowledge",
+    label: "Knowledge enquiry", shortLabel: "Knowledge",
     detail: "An occupant asks for building information, hours, access, or a procedure.",
-    subject: "Fitness center hours",
-    description: "What time does the fitness center close tonight?",
-    requester: "Priya Shah",
-    locationId: "BLDG-A-F01-FITNESS",
-    worldEffect: "Creates an occupant request. Sensor values remain normal.",
+    subject: "Fitness center hours", description: "What time does the fitness center close tonight?",
+    requester: "Priya Shah", floor: 1, room: "Fitness center", condition: "normal",
     agentOutcome: "Search approved building knowledge, reply to the occupant, and close the ticket.",
   },
   service_request: {
-    label: "Service request",
-    shortLabel: "Service",
-    detail: "An occupant reports a comfort or routine building problem that may allow a safe adjustment.",
+    label: "Service request", shortLabel: "Service",
+    detail: "An occupant reports a routine building problem that may allow a policy-safe operational change.",
     subject: "Conference Room 4B is too warm",
     description: "The room feels hot during our client meeting. Can facilities check the temperature?",
-    requester: "Marcus Lee",
-    locationId: "BLDG-A-F04-CONF-4B",
-    worldEffect: "Raises the Floor 4 temperature to 77.2°F and publishes the occupant request.",
-    agentOutcome: "Correlate the ticket with HVAC telemetry, apply an approved setpoint, and verify recovery.",
+    requester: "Marcus Lee", floor: 4, room: "Conference 4B", condition: "temperature_high",
+    agentOutcome: "Correlate the ticket with telemetry, perform an allowed adjustment, and verify recovery.",
   },
   incident: {
-    label: "Safety incident",
-    shortLabel: "Safety",
+    label: "Safety incident", shortLabel: "Safety",
     detail: "An occupant reports evidence of a potentially unsafe condition requiring investigation.",
-    subject: "Flickering lights and burning smell on Floor 7",
-    description: "Lights are flickering near the east offices and we smell hot plastic.",
-    requester: "Elena Garcia",
-    locationId: "BLDG-A-F07-EAST",
-    worldEffect: "Trips the Floor 7 electrical panel alarm to 126.4°F and publishes the incident.",
-    agentOutcome: "Collect evidence, apply safety policy, request dispatch approval, then track and verify repair.",
+    subject: "Unusual burning smell in the Floor 5 pantry",
+    description: "There is a strong burning smell in the pantry on Floor 5. I cannot see smoke, but the odor is getting stronger.",
+    requester: "Building Occupant", floor: 5, room: "Pantry", condition: "smoke_or_odor",
+    agentOutcome: "Correlate the report with the local alarm, request approval, dispatch the correct trade, and verify clearance.",
   },
+};
+
+const conditionOptions: Record<RequestType, Array<{ value: ConditionType; label: string }>> = {
+  enquiry: [{ value: "normal", label: "No equipment failure" }],
+  service_request: [
+    { value: "temperature_high", label: "Temperature above comfort range" },
+    { value: "temperature_low", label: "Temperature below comfort range" },
+    { value: "air_quality", label: "Air quality degradation" },
+  ],
+  incident: [
+    { value: "smoke_or_odor", label: "Smoke / unusual odor alarm" },
+    { value: "electrical_overheat", label: "Electrical cabinet overheating" },
+  ],
 };
 
 const scenarioCopy: Record<ScenarioType, { label: string; detail: string }> = {
   all: { label: "Mixed scenarios", detail: "Rotate through the full building scenario catalog." },
   enquiry: { label: "Knowledge enquiries", detail: "Hours, access, visitors, deliveries, amenities, and procedures." },
-  service_request: { label: "Service requests", detail: "Comfort conditions paired with abnormal telemetry." },
-  incident: { label: "Safety incidents", detail: "Occupant reports paired with safety sensor alarms." },
+  service_request: { label: "Service requests", detail: "Occupant reports paired with relevant warning telemetry." },
+  incident: { label: "Safety incidents", detail: "Occupant reports paired with critical local sensor alarms." },
 };
 
+function locationIdFor(floor: number, room: string) {
+  if (floor === 1 && room === "Fitness center") return "BLDG-A-F01-FITNESS";
+  if (floor === 1 && room === "Main lobby") return "BLDG-A-LOBBY";
+  if (floor === 4 && room === "Conference 4B") return "BLDG-A-F04-CONF-4B";
+  if (floor === 7 && room === "East office zone") return "BLDG-A-F07-EAST";
+  const roomCode = room.toUpperCase().replaceAll("&", "AND").replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return `BLDG-A-F${String(floor).padStart(2, "0")}-${roomCode}`;
+}
+
+function sensorIdFor(condition: ConditionType, floor: number) {
+  if (condition === "normal") return null;
+  if (condition === "temperature_high" || condition === "temperature_low") return `TMP-${String(floor).padStart(2, "0")}-01`;
+  if (condition === "air_quality" || condition === "smoke_or_odor") return `VOC-${String(floor).padStart(2, "0")}-01`;
+  return floor === 7 ? "ELEC-7A" : `PWR-${String(floor).padStart(2, "0")}-01`;
+}
+
 export function GeneratorView({ live, busy, onPublishRequest, onGenerate, onConfigure, onOpenActivity, onOpenBuilding }: Props) {
+  const initial = requestPresets.enquiry;
   const [requestType, setRequestType] = useState<RequestType>("enquiry");
-  const [subject, setSubject] = useState(requestPresets.enquiry.subject);
-  const [description, setDescription] = useState(requestPresets.enquiry.description);
-  const [requester, setRequester] = useState(requestPresets.enquiry.requester);
-  const [locationId, setLocationId] = useState(requestPresets.enquiry.locationId);
+  const [conditionType, setConditionType] = useState<ConditionType>(initial.condition);
+  const [subject, setSubject] = useState(initial.subject);
+  const [description, setDescription] = useState(initial.description);
+  const [requester, setRequester] = useState(initial.requester);
+  const [selectedFloor, setSelectedFloor] = useState(initial.floor);
+  const [selectedRoom, setSelectedRoom] = useState(initial.room);
   const [receipt, setReceipt] = useState<PublishedRequest | null>(null);
   const [count, setCount] = useState(3);
   const [scenarioType, setScenarioType] = useState<ScenarioType>("all");
@@ -85,87 +110,64 @@ export function GeneratorView({ live, busy, onPublishRequest, onGenerate, onConf
 
   const chooseType = (nextType: RequestType) => {
     const preset = requestPresets[nextType];
-    setRequestType(nextType);
-    setSubject(preset.subject);
-    setDescription(preset.description);
-    setRequester(preset.requester);
-    setLocationId(preset.locationId);
-    setReceipt(null);
+    setRequestType(nextType); setConditionType(preset.condition); setSubject(preset.subject);
+    setDescription(preset.description); setRequester(preset.requester);
+    setSelectedFloor(preset.floor); setSelectedRoom(preset.room); setReceipt(null);
   };
-
+  const chooseFloor = (floorNumber: number) => {
+    const floor = floors.find((item) => item.number === floorNumber)!;
+    setSelectedFloor(floorNumber); setSelectedRoom(floor.rooms[0]); setReceipt(null);
+  };
   const submitRequest = async (event: FormEvent) => {
     event.preventDefault();
-    const nextReceipt = await onPublishRequest({ request_type: requestType, subject, description, requester, location_id: locationId });
-    setReceipt(nextReceipt);
+    setReceipt(await onPublishRequest({
+      request_type: requestType, condition_type: conditionType, subject, description, requester,
+      location_id: locationIdFor(selectedFloor, selectedRoom),
+    }));
   };
-
   const submitBatch = async (event: FormEvent) => {
-    event.preventDefault();
-    await onGenerate(count, scenarioType);
-    setPublished(count);
+    event.preventDefault(); await onGenerate(count, scenarioType); setPublished(count);
   };
 
   const preset = requestPresets[requestType];
+  const floor = floors.find((item) => item.number === selectedFloor)!;
+  const sensorId = sensorIdFor(conditionType, selectedFloor);
+  const worldEffect = sensorId
+    ? `${sensorId} at Floor ${selectedFloor} · ${selectedRoom} will enter ${conditionType === "smoke_or_odor" || conditionType === "electrical_overheat" ? "critical alarm" : "warning"}.`
+    : `Floor ${selectedFloor} · ${selectedRoom} remains healthy; only the occupant request is published.`;
   const condition = live.simulation.last_event?.condition.condition;
 
   return <section className="generator-view">
-    <header className="generator-heading">
-      <div><p>BUILDING WORLD CONTROL</p><h2>Create a real request scenario</h2><span>Pair an occupant report with the building conditions the operations agents would actually observe.</span></div>
-      <span className={`generator-state ${live.simulation.running ? "running" : "paused"}`}><i />{live.simulation.running ? "Automatic generation running" : "Automatic generation paused"}</span>
-    </header>
+    <header className="generator-heading"><div><p>BUILDING WORLD CONTROL</p><h2>Create a real request scenario</h2><span>Select any floor and space, publish the occupant report, and induce only the matching building condition.</span></div><span className={`generator-state ${live.simulation.running ? "running" : "paused"}`}><i />{live.simulation.running ? "Automatic generation running" : "Automatic generation paused"}</span></header>
 
     <div className="generator-layout request-scenario-layout">
       <form className="generator-card request-composer" onSubmit={submitRequest}>
-        <div className="generator-card-title"><span>01</span><div><h3>Raise an occupant request</h3><p>Choose the situation, then edit the message as if it arrived at reception.</p></div></div>
-        <fieldset className="request-type-picker">
-          <legend>What kind of request is this?</legend>
-          <div>{(Object.keys(requestPresets) as RequestType[]).map((type) => <button type="button" className={requestType === type ? "active" : ""} onClick={() => chooseType(type)} key={type}><b>{requestPresets[type].shortLabel}</b><span>{type === "enquiry" ? "Information only" : type === "service_request" ? "Operational change" : "Safety response"}</span></button>)}</div>
-        </fieldset>
+        <div className="generator-card-title"><span>01</span><div><h3>Raise an occupant request</h3><p>Compose the report exactly as reception would receive it.</p></div></div>
+        <fieldset className="request-type-picker"><legend>What kind of request is this?</legend><div>{(Object.keys(requestPresets) as RequestType[]).map((type) => <button type="button" className={requestType === type ? "active" : ""} onClick={() => chooseType(type)} key={type}><b>{requestPresets[type].shortLabel}</b><span>{type === "enquiry" ? "Information only" : type === "service_request" ? "Operational change" : "Safety response"}</span></button>)}</div></fieldset>
         <div className="request-type-explanation"><b>{preset.label}</b><span>{preset.detail}</span></div>
-        <div className="generator-form-grid">
-          <label>Requester<input value={requester} onChange={(event) => setRequester(event.target.value)} required minLength={2} /></label>
-          <label>Building location<select value={locationId} onChange={(event) => setLocationId(event.target.value)}><option value="BLDG-A-F01-FITNESS">Floor 1 · Fitness Center</option><option value="BLDG-A-F04-CONF-4B">Floor 4 · Conference Room 4B</option><option value="BLDG-A-F07-EAST">Floor 7 · East Office Zone</option><option value="BLDG-A-LOBBY">Ground · Main Lobby</option></select></label>
-        </div>
+
+        <section className="scenario-location-picker">
+          <div className="location-picker-head"><div><small>BUILDING LOCATION</small><b>Floor {selectedFloor} · {selectedRoom}</b></div><span>{locationIdFor(selectedFloor, selectedRoom)}</span></div>
+          <div className="location-picker-body">
+            <div className="mini-floor-stack" aria-label="Select building floor">{[...floors].sort((a, b) => b.number - a.number).map((item) => <button type="button" className={item.number === selectedFloor ? "active" : ""} onClick={() => chooseFloor(item.number)} key={item.number}><i />F{String(item.number).padStart(2, "0")}</button>)}</div>
+            <div className="scenario-floor-map"><header><div><small>FLOOR {String(selectedFloor).padStart(2, "0")}</small><b>{floor.name}</b></div><span>{floor.use}</span></header><div className="scenario-map-grid">{floor.rooms.map((room, index) => <button type="button" className={`map-space space-${index + 1} ${selectedRoom === room ? "active" : ""}`} onClick={() => { setSelectedRoom(room); setReceipt(null); }} key={room}><b>{room}</b><span>{selectedRoom === room ? "Selected location" : "Select space"}</span></button>)}<div className="scenario-map-core"><b>BUILDING CORE</b><span>Lift · Stair · Services</span></div></div></div>
+          </div>
+        </section>
+
+        <div className="generator-form-grid"><label>Requester<input value={requester} onChange={(event) => setRequester(event.target.value)} required minLength={2} /></label><label>Simulated building condition<select value={conditionType} onChange={(event) => { setConditionType(event.target.value as ConditionType); setReceipt(null); }}>{conditionOptions[requestType].map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label></div>
         <label>Subject<input value={subject} onChange={(event) => setSubject(event.target.value)} required minLength={3} maxLength={120} /></label>
-        <label>Occupant message<textarea value={description} onChange={(event) => setDescription(event.target.value)} required minLength={3} maxLength={2000} rows={4} placeholder="Describe what the occupant is asking or reporting…" /><small>The agent will classify the message independently; the selected type controls the simulated world condition.</small></label>
-        <button className="publish-button" disabled={busy}>Create request scenario</button>
-        {receipt && <div className="request-receipt"><span>✓</span><div><b>{receipt.payload.ticket_id} published</b><p>Accepted on <strong>building.events</strong>. An operations worker will create and start workflow WF-{receipt.payload.ticket_id}.</p><div><button type="button" onClick={onOpenActivity}>Watch agent activity</button><button type="button" onClick={onOpenBuilding}>View building sensors</button></div></div></div>}
+        <label>Occupant message<textarea value={description} onChange={(event) => setDescription(event.target.value)} required minLength={3} maxLength={2000} rows={4} placeholder="Describe what the occupant is asking or reporting…" /><small>The agent classifies the text independently; the selected condition controls the simulated sensor evidence.</small></label>
+        <button className="publish-button" disabled={busy}>Create request and building scenario</button>
+        {receipt && <div className="request-receipt"><span>✓</span><div><b>{receipt.payload.ticket_id} published</b><p>Request and {sensorId || "normal building state"} are correlated on <strong>building.events</strong>.</p><div><button type="button" onClick={onOpenActivity}>Watch agent activity</button><button type="button" onClick={onOpenBuilding}>View building sensors</button></div></div></div>}
       </form>
 
-      <section className="generator-card request-lifecycle">
-        <div className="generator-card-title"><span>02</span><div><h3>What happens next</h3><p>One correlated scenario, visible across the product.</p></div></div>
-        <div className={`world-effect ${requestType}`}><small>BUILDING WORLD EFFECT</small><b>{preset.worldEffect}</b>{requestType !== "enquiry" && <span className="alarm-chip">● Sensor alarm induced</span>}</div>
-        <ol>
-          <li><i>1</i><div><b>Publish</b><span>The report and condition enter durable pub/sub together.</span></div></li>
-          <li><i>2</i><div><b>Create workflow</b><span>An intake worker idempotently creates the ticket and checkpoint.</span></div></li>
-          <li><i>3</i><div><b>Investigate</b><span>The agent reads the request, policy, knowledge, and live building evidence.</span></div></li>
-          <li><i>4</i><div><b>Act or coordinate</b><span>{preset.agentOutcome}</span></div></li>
-          <li><i>5</i><div><b>Update everywhere</b><span>Agent Activity streams each step; Tickets and Building refresh live.</span></div></li>
-        </ol>
-      </section>
+      <section className="generator-card request-lifecycle"><div className="generator-card-title"><span>02</span><div><h3>What happens next</h3><p>One correlated scenario, visible across the product.</p></div></div><div className={`world-effect ${requestType}`}><small>BUILDING WORLD EFFECT</small><b>{worldEffect}</b>{sensorId && <span className="alarm-chip">● Location-specific sensor condition</span>}</div><ol><li><i>1</i><div><b>Publish</b><span>The report and condition enter durable pub/sub together.</span></div></li><li><i>2</i><div><b>Create workflow</b><span>An intake worker idempotently creates the ticket and checkpoint.</span></div></li><li><i>3</i><div><b>Investigate</b><span>The agent reads the request, policy, knowledge, and correlated sensor.</span></div></li><li><i>4</i><div><b>Act or coordinate</b><span>{preset.agentOutcome}</span></div></li><li><i>5</i><div><b>Update everywhere</b><span>Agent Activity streams each step; Tickets and Building refresh live.</span></div></li></ol></section>
 
-      <aside className="generator-card generator-observability">
-        <div className="generator-card-title"><span>03</span><div><h3>Live delivery</h3><p>Requests and alarms cross the same service boundary.</p></div></div>
-        <dl><div><dt>Generated</dt><dd>{live.simulation.issues_generated}</dd></div><div><dt>Queued</dt><dd>{live.messaging.pending}</dd></div><div><dt>Acknowledged</dt><dd>{live.messaging.completed}</dd></div><div><dt>Retrying</dt><dd>{live.messaging.retrying}</dd></div><div><dt>Dead letters</dt><dd>{live.messaging.dead_letters}</dd></div><div><dt>Workers</dt><dd>{live.agent.worker_count}</dd></div></dl>
-        <div className="generator-route"><span>BUILDING WORLD</span><i>→</i><b>building.events</b><i>→</i><span>OPERATIONS</span></div>
-        {live.simulation.last_event ? <div className="generator-latest"><small>LATEST PUBLISHED EVENT</small><b>{live.simulation.last_event.subject}</b><span>{live.simulation.last_event.ticket_id} · {live.simulation.last_event.location_id}</span><em className={condition === "normal" ? "normal" : "alarm"}>{condition === "normal" ? "Sensors unchanged" : `Condition: ${condition?.replaceAll("_", " ")}`}</em></div> : <div className="generator-latest"><small>READY</small><b>No generated events yet</b><span>Create a request scenario or start the automatic cadence.</span></div>}
-      </aside>
+      <aside className="generator-card generator-observability"><div className="generator-card-title"><span>03</span><div><h3>Live delivery</h3><p>Requests and alarms cross the same service boundary.</p></div></div><dl><div><dt>Generated</dt><dd>{live.simulation.issues_generated}</dd></div><div><dt>Queued</dt><dd>{live.messaging.pending}</dd></div><div><dt>Acknowledged</dt><dd>{live.messaging.completed}</dd></div><div><dt>Retrying</dt><dd>{live.messaging.retrying}</dd></div><div><dt>Dead letters</dt><dd>{live.messaging.dead_letters}</dd></div><div><dt>Workers</dt><dd>{live.agent.worker_count}</dd></div></dl><div className="generator-route"><span>BUILDING WORLD</span><i>→</i><b>building.events</b><i>→</i><span>OPERATIONS</span></div>{live.simulation.last_event ? <div className="generator-latest"><small>LATEST PUBLISHED EVENT</small><b>{live.simulation.last_event.subject}</b><span>{live.simulation.last_event.ticket_id} · {live.simulation.last_event.location_id}</span><em className={condition === "normal" ? "normal" : "alarm"}>{condition === "normal" ? "Sensors unchanged" : `Condition: ${condition?.replaceAll("_", " ")}`}</em></div> : <div className="generator-latest"><small>READY</small><b>No generated events yet</b><span>Create a request scenario or start the automatic cadence.</span></div>}</aside>
 
-      <form className="generator-card batch-controls" onSubmit={submitBatch}>
-        <div className="generator-card-title"><span>04</span><div><h3>Load and concurrency test</h3><p>Publish multiple realistic catalog scenarios to exercise parallel workflows.</p></div></div>
-        <div className="batch-row"><label>Scenario mix<select value={scenarioType} onChange={(event) => setScenarioType(event.target.value as ScenarioType)}>{Object.entries(scenarioCopy).map(([value, copy]) => <option value={value} key={value}>{copy.label}</option>)}</select></label><label>Number of requests<div className="quantity-control"><button type="button" aria-label="Decrease request count" onClick={() => setCount((value) => Math.max(1, value - 1))}>−</button><input type="number" min="1" max="20" value={count} onChange={(event) => setCount(Math.min(20, Math.max(1, Number(event.target.value) || 1)))} /><button type="button" aria-label="Increase request count" onClick={() => setCount((value) => Math.min(20, value + 1))}>＋</button></div></label></div>
-        <div className="generator-type-note"><b>{scenarioCopy[scenarioType].label}</b><span>{scenarioCopy[scenarioType].detail}</span></div>
-        <button className="publish-button" disabled={busy}>Publish {count} catalog scenario{count === 1 ? "" : "s"}</button>
-        {published > 0 && <p className="generator-confirmation">✓ Last load test published {published} event{published === 1 ? "" : "s"}.</p>}
-      </form>
+      <form className="generator-card batch-controls" onSubmit={submitBatch}><div className="generator-card-title"><span>04</span><div><h3>Load and concurrency test</h3><p>Publish multiple catalog scenarios to exercise parallel workflows.</p></div></div><div className="batch-row"><label>Scenario mix<select value={scenarioType} onChange={(event) => setScenarioType(event.target.value as ScenarioType)}>{Object.entries(scenarioCopy).map(([value, copy]) => <option value={value} key={value}>{copy.label}</option>)}</select></label><label>Number of requests<div className="quantity-control"><button type="button" aria-label="Decrease request count" onClick={() => setCount((value) => Math.max(1, value - 1))}>−</button><input type="number" min="1" max="20" value={count} onChange={(event) => setCount(Math.min(20, Math.max(1, Number(event.target.value) || 1)))} /><button type="button" aria-label="Increase request count" onClick={() => setCount((value) => Math.min(20, value + 1))}>＋</button></div></label></div><div className="generator-type-note"><b>{scenarioCopy[scenarioType].label}</b><span>{scenarioCopy[scenarioType].detail}</span></div><button className="publish-button" disabled={busy}>Publish {count} catalog scenario{count === 1 ? "" : "s"}</button>{published > 0 && <p className="generator-confirmation">✓ Last load test published {published} event{published === 1 ? "" : "s"}.</p>}</form>
 
-      <section className="generator-card cadence-controls">
-        <div className="generator-card-title"><span>05</span><div><h3>Automatic cadence</h3><p>Control continuous background request and condition creation.</p></div></div>
-        <label>Time between scenarios<div className="interval-control"><input type="number" min="5" max="3600" value={intervalSeconds} onChange={(event) => setIntervalSeconds(Math.min(3600, Math.max(5, Number(event.target.value) || 5)))} /><span>seconds</span></div></label>
-        <div className="cadence-preview"><span>At this rate</span><b>~{Math.max(1, Math.round(3600 / intervalSeconds))}</b><small>scenarios per hour</small></div>
-        <button className={live.simulation.running ? "pause-button" : "publish-button"} disabled={busy} onClick={() => onConfigure(!live.simulation.running, intervalSeconds)}>{live.simulation.running ? "Pause automatic generation" : "Start automatic generation"}</button>
-        <button className="save-cadence" disabled={busy} onClick={() => onConfigure(live.simulation.running, intervalSeconds)}>Save cadence</button>
-      </section>
+      <section className="generator-card cadence-controls"><div className="generator-card-title"><span>05</span><div><h3>Automatic cadence</h3><p>Control continuous background request and condition creation.</p></div></div><label>Time between scenarios<div className="interval-control"><input type="number" min="5" max="3600" value={intervalSeconds} onChange={(event) => setIntervalSeconds(Math.min(3600, Math.max(5, Number(event.target.value) || 5)))} /><span>seconds</span></div></label><div className="cadence-preview"><span>At this rate</span><b>~{Math.max(1, Math.round(3600 / intervalSeconds))}</b><small>scenarios per hour</small></div><button className={live.simulation.running ? "pause-button" : "publish-button"} disabled={busy} onClick={() => onConfigure(!live.simulation.running, intervalSeconds)}>{live.simulation.running ? "Pause automatic generation" : "Start automatic generation"}</button><button className="save-cadence" disabled={busy} onClick={() => onConfigure(live.simulation.running, intervalSeconds)}>Save cadence</button></section>
     </div>
   </section>;
 }

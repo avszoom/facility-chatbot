@@ -19,6 +19,7 @@ def operations_commands(worker_count: int) -> list[list[str]]:
             "127.0.0.1",
             "--port",
             "8000",
+            "--no-access-log",
         ],
         *[
             [sys.executable, "-m", "backend.app.scheduling.local_worker"]

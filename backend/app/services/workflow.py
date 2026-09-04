@@ -389,31 +389,45 @@ class WorkflowService:
         self._send_update(ticket, "I made a policy-safe temperature adjustment and am verifying the room response before closing the ticket.", key="VERIFY-WAIT")
 
     def _investigate_incident(self, ticket: Ticket) -> None:
-        asset = self.building.asset_at(ticket.location_id, "electrical_panel")
+        correlated = self.building.condition_for_ticket(ticket.ticket_id)
+        asset = correlated["sensor"] if correlated else self.building.asset_at(ticket.location_id, "electrical_panel")
         if not asset:
             self._transition(ticket, TicketStatus.ESCALATED)
-            self._event(ticket, "ticket.escalated", "No candidate electrical asset was found.", key="NO-ELECTRICAL-ASSET")
+            self._event(ticket, "ticket.escalated", "No correlated building sensor or candidate asset was found.", key="NO-BUILDING-ASSET")
             return
         telemetry = self.building.telemetry(asset["asset_id"])
         history = self.building.history(asset["asset_id"])
+        is_air_quality = telemetry.get("type") == "VOC / odor"
+        trade = "indoor_air_quality" if is_air_quality else "electrical"
+        action_type = "dispatch_safety_technician" if is_air_quality else "dispatch_electrical_technician"
+        procedure = (
+            "Inspect the reported odor zone, test air quality, isolate the source, ventilate if safe, and document clearance readings."
+            if is_air_quality
+            else "Inspect and repair the suspected overheated electrical connection; complete a thermal safety check."
+        )
+        evidence_summary = (
+            f"The correlated {telemetry.get('type', 'air quality')} sensor at {telemetry.get('area', ticket.location_id)} reached {telemetry.get('value', 'an alarm state')}."
+            if is_air_quality
+            else f"The correlated electrical sensor reached {telemetry.get('cabinet_temperature_f', 126.4):.1f}°F and {telemetry.get('current_amps', 58.1):.1f} A while reporting a fault."
+        )
         self._event(
             ticket,
             "evidence.collected",
-            f"The upstream panel rose to {telemetry['cabinet_temperature_f']:.1f}°F and {telemetry['current_amps']:.1f} A while reporting a fault.",
+            evidence_summary,
             payload={"asset": asset, "telemetry": telemetry, "history": history},
             key="INCIDENT-EVIDENCE",
         )
-        policy = self.policy.evaluate("dispatch_electrical_technician", {"priority": "high"})
+        policy = self.policy.evaluate(action_type, {"priority": "high"})
         action = ActionRecord(
             action_id=f"ACT-{ticket.ticket_id}-DISPATCH",
             ticket_id=ticket.ticket_id,
-            action_type="dispatch_electrical_technician",
+            action_type=action_type,
             risk_tier=policy.tier,
             policy_rule=policy.rule,
             status="proposed",
             before_state=telemetry,
-            requested={"asset_id": asset["asset_id"], "trade": "electrical", "priority": "high"},
-            rationale="Evidence supports urgent qualified inspection; the agent cannot isolate electrical equipment.",
+            requested={"asset_id": asset["asset_id"], "trade": trade, "priority": "high", "procedure": procedure},
+            rationale="Correlated occupant and sensor evidence supports qualified inspection; the agent will not perform hazardous physical work.",
             idempotency_key=f"DISPATCH-{ticket.ticket_id}",
             created_at=datetime.now(UTC),
         )
@@ -422,7 +436,7 @@ class WorkflowService:
         self._event(
             ticket,
             "approval.requested",
-            "Approve urgent electrical technician dispatch. The agent will not isolate or modify life-safety equipment.",
+            f"Approve urgent {trade.replace('_', ' ')} technician dispatch. The agent will not perform hazardous physical work.",
             payload=action.model_dump(mode="json"),
             key="APPROVAL-REQUEST",
         )
@@ -431,15 +445,16 @@ class WorkflowService:
         if ticket.status != TicketStatus.WORKING:
             return
         due = datetime.now(UTC) + timedelta(seconds=self.technician_delay_seconds)
+        action = self.repository.get_action(f"ACT-{ticket.ticket_id}-DISPATCH")
+        requested = action.requested if action else {}
         order = self.work_orders.create(
             ticket,
-            asset_id="ELEC-PNL-7A",
-            trade="electrical",
-            procedure="Inspect and repair the heat-damaged feeder connection; torque and thermal-check the enclosure.",
+            asset_id=str(requested.get("asset_id", "ELEC-PNL-7A")),
+            trade=str(requested.get("trade", "electrical")),
+            procedure=str(requested.get("procedure", "Inspect the affected system and document safe restoration.")),
             due_at=due,
             idempotency_key=f"WO-{ticket.ticket_id}",
         )
-        action = self.repository.get_action(f"ACT-{ticket.ticket_id}-DISPATCH")
         if action:
             action.status = "completed"
             action.after_state = {"work_order": order.model_dump(mode="json")}
@@ -473,9 +488,11 @@ class WorkflowService:
     def _complete_technician(self, ticket: Ticket) -> None:
         if ticket.status != TicketStatus.WAITING_TECHNICIAN:
             return
+        existing_order = self.repository.get_work_order_for_ticket(ticket.ticket_id)
+        trade_label = existing_order.trade.replace("_", " ") if existing_order else "facilities"
         order = self.work_orders.complete(
             ticket.ticket_id,
-            "Found heat damage at the feeder lug. Replaced the connection, torqued to specification, and completed a thermal scan.",
+            f"Inspected the affected zone, corrected the {trade_label} condition, and documented stable clearance readings.",
         )
         repair = self.building.complete_incident_repair(order.asset_id)
         self._event(
@@ -490,7 +507,7 @@ class WorkflowService:
         self._transition(
             ticket,
             TicketStatus.WAITING_VERIFICATION,
-            waiting="Independently verifying electrical readings after repair.",
+            waiting="Independently verifying the correlated building readings after repair.",
             wake_at=wake,
             persist=False,
         )

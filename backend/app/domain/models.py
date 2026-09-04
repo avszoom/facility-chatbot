@@ -194,6 +194,14 @@ class SimulationGenerateRequest(Model):
 
 class SimulationCustomRequest(Model):
     request_type: Literal["enquiry", "service_request", "incident"]
+    condition_type: Literal[
+        "normal",
+        "temperature_high",
+        "temperature_low",
+        "air_quality",
+        "smoke_or_odor",
+        "electrical_overheat",
+    ] = "normal"
     subject: str = Field(min_length=3, max_length=120)
     description: str = Field(min_length=3, max_length=2000)
     requester: str = Field(default="Building Occupant", min_length=2, max_length=80)

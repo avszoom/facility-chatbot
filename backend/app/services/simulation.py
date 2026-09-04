@@ -199,6 +199,7 @@ class BuildingSimulationService:
         request: TicketCreate,
         *,
         request_type: str,
+        condition_type: str = "normal",
         now: datetime | None = None,
     ) -> PubSubMessage:
         """Publish a receptionist-authored request through the building event boundary."""
@@ -209,13 +210,13 @@ class BuildingSimulationService:
             "service_request": "occupant_service_request",
             "incident": "occupant_incident",
         }[request_type]
-        condition_name = {
-            "enquiry": "normal",
-            "service_request": "comfort_drift",
-            "incident": "electrical_overheat",
-        }[request_type]
-        condition = self.building.inject_simulated_condition(condition_name)
         ticket_id = f"TKT-{uuid4().hex[:6].upper()}"
+        condition_name = condition_type if request_type != "enquiry" else "normal"
+        condition = self.building.inject_simulated_condition(
+            condition_name,
+            request.location_id,
+            ticket_id,
+        )
         message = self.message_bus.publish(
             topic="building.events",
             message_type="building.request.detected",
@@ -304,14 +305,19 @@ class BuildingSimulationService:
             self.repository.set_state(self.STATE_KEY, state)
             return None
         scenario_index, scenario = candidates[0]
-        condition = self.building.inject_simulated_condition(str(scenario["condition"]))
+        ticket_id = f"TKT-{uuid4().hex[:6].upper()}"
+        condition = self.building.inject_simulated_condition(
+            str(scenario["condition"]),
+            str(scenario["location_id"]),
+            ticket_id,
+        )
         request = TicketCreate(
             subject=str(scenario["subject"]),
             description=str(scenario["description"]),
             requester=str(scenario["requester"]),
             location_id=str(scenario["location_id"]),
+            kind=str(scenario["scenario_type"]),
         )
-        ticket_id = f"TKT-{uuid4().hex[:6].upper()}"
         message = self.message_bus.publish(
             topic="building.events",
             message_type="building.request.detected",

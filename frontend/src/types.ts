@@ -80,7 +80,7 @@ export interface TicketDetail {
     status: "running" | "waiting" | "completed" | "failed";
     checkpoint: Record<string, unknown>;
     version: number;
-    updated_at: string | null;
+    updated_at: string;
   } | null;
 }
 
@@ -122,7 +122,25 @@ export interface LiveOperations {
       fault?: string;
     }>;
     history: Record<string, Array<Record<string, number>>>;
-    updated_at: string;
+    sensor_overrides: Record<string, {
+      id: string;
+      asset_id: string;
+      floor: number;
+      area: string;
+      type: string;
+      value: string;
+      target: string;
+      state: "Normal" | "Warning" | "Critical";
+      seen: string;
+      location_id: string;
+    }>;
+    active_conditions: Record<string, {
+      ticket_id: string;
+      sensor_id: string;
+      condition: string;
+      location_id: string;
+    }>;
+    updated_at: string | null;
   };
   agent: {
     status: string;
@@ -160,6 +178,7 @@ export type RequestType = "enquiry" | "service_request" | "incident";
 
 export interface CustomRequestInput {
   request_type: RequestType;
+  condition_type: "normal" | "temperature_high" | "temperature_low" | "air_quality" | "smoke_or_odor" | "electrical_overheat";
   subject: string;
   description: string;
   requester: string;
@@ -172,7 +191,7 @@ export interface PublishedRequest {
   correlation_id: string;
   payload: {
     ticket_id: string;
-    request: Omit<CustomRequestInput, "request_type"> & { kind: RequestType };
+    request: Omit<CustomRequestInput, "request_type" | "condition_type"> & { kind: RequestType };
     scenario: {
       type: string;
       scenario_type: RequestType;

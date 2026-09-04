@@ -107,8 +107,8 @@ class TicketService:
         self.repository.reset()
         building = LocalBuildingProvider(self.repository)
         building.reset()
-        building.inject_simulated_condition("comfort_drift")
-        building.inject_simulated_condition("electrical_overheat")
+        building.inject_simulated_condition("comfort_drift", "BLDG-A-F04-CONF-4B", "TKT-1002")
+        building.inject_simulated_condition("electrical_overheat", "BLDG-A-F07-EAST", "TKT-1003")
         tickets = [
             self.create(
                 TicketCreate(
@@ -167,6 +167,7 @@ class TicketService:
         )
         if not action:
             raise ValueError("Approval action not found")
+        trade_label = str(action.requested.get("trade", "facilities")).replace("_", " ")
         now = datetime.now(UTC)
         action.status = "approved" if request.approved else "denied"
         action.completed_at = now if not request.approved else None
@@ -186,7 +187,7 @@ class TicketService:
                 actor="Facility Manager",
                 event_type="approval.decided",
                 summary=(
-                    "Approved qualified technician dispatch and controlled inspection."
+                    f"Approved qualified {trade_label} technician dispatch and controlled inspection."
                     if request.approved else
                     f"Denied the proposed action. {request.reason or 'Manual review required.'}"
                 ),
