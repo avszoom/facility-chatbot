@@ -1,5 +1,14 @@
 # Build Notes
 
+## 2026-09-03 — Live OpenAI reasoning through Strands
+
+- Added an OpenAI Responses API model adapter behind the existing `AgentRuntime` contract while retaining the Bedrock adapter for the AWS stage and the deterministic adapter for repeatable tests.
+- The Strands agent now has bounded tools to read the ticket, list all six sensors at the reported floor, inspect individual live readings and rolling histories, search relevant maintenance records, and query authoritative building knowledge.
+- Extended typed decisions with exact evidence sensor IDs, a concise diagnosis, provider/model identity, and an observed tool-call trace. Cross-floor or invented sensor IDs are rejected before any workflow action.
+- Updated service and incident execution to use the model-selected sensor instead of a fixed Floor 4/7 asset, including a general “burning smell in the Floor 5 pantry” report with no pre-scripted fault.
+- Added judge-visible runtime/model identity and `agent.tools_completed` events while keeping API keys out of browser payloads and audit records.
+- Verified one live `gpt-5.2` decision through Strands and OpenAI: the model inspected Floor 5 telemetry/history, cited `VOC-05-01` and `PWR-05-01`, and selected approval-gated incident investigation. Offline verification remains deterministic.
+
 ## 2026-09-03 — Implementation plan
 
 - The participant redirected the guided flow from interviewing to a concrete implementation plan: “I mean plan for implementation of project” and “can you retry.”

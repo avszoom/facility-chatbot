@@ -5,7 +5,7 @@ The domain models, state machine, policy rules, action gateway, ticket service, 
 | Capability | Local implementation | AWS replacement | Contract preserved |
 | --- | --- | --- | --- |
 | Building-world event generation | Durable `BuildingSimulationService` + independent simulator process | EventBridge Scheduler + Lambda, IoT Core rules, or a synthetic test-event producer | simulation state + ticket intake boundary |
-| Agent reasoning | `StrandsAgentRuntime` in API/worker process | Strands in Bedrock AgentCore Runtime | `AgentRuntime.decide → AgentDecision` |
+| Agent reasoning | Strands + OpenAI Responses API in the Operations worker (`OpenAIStrandsRuntime`) | The same Strands agent in Bedrock AgentCore Runtime with a Bedrock model adapter | `AgentRuntime.decide → AgentDecision` |
 | Durable tickets/audit | SQLite WAL tables | DynamoDB single table + conditional writes | `OperationsRepository` |
 | Cross-service pub/sub | SQLite message and subscription-delivery tables with at-least-once delivery | EventBridge custom bus or SNS topics fan-out to SQS subscriptions | `MessageBusPort` + stable message envelope |
 | Delayed/resumable jobs | Transactional SQLite workflow outbox + configurable subscriber worker pool | EventBridge Scheduler → EventBridge/SQS/Lambda | `WorkflowJob` + `WorkflowService` |
@@ -24,7 +24,7 @@ The domain models, state machine, policy rules, action gateway, ticket service, 
 
 ## Migration order
 
-1. Package only `StrandsAgentRuntime` for AgentCore and prove one typed invocation plus trace.
+1. Package the same Strands tool loop for AgentCore, switch the model adapter from OpenAI Responses to Bedrock, and prove one typed invocation plus trace.
 2. Replace `SQLiteDurablePubSub` with EventBridge/SNS plus SQS subscriptions while retaining SQLite ticket persistence for a controlled split test.
 3. Move building-world scheduling to EventBridge Scheduler and feed simulated or real IoT events through the same ticket-intake boundary.
 4. Move persistence to DynamoDB and run the same lifecycle/idempotency tests.

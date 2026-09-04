@@ -9,6 +9,7 @@ description = "A local-first Strands agent for autonomous building support opera
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1",
+  "openai>=2.0,<3",
   "pydantic>=2.9,<3",
   "python-dotenv>=1.0,<2",
   "strands-agents>=1.0,<2",

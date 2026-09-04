@@ -10,7 +10,7 @@ The same domain services run locally and on AWS. Persistence, event scheduling, 
 
 - **Backend:** Python 3.11+, FastAPI, Pydantic, SQLAlchemy, Alembic.
 - **Agent:** Strands Agents SDK for Python with Pydantic structured output, custom tools, and lifecycle hooks.
-- **Model:** Amazon Bedrock model through Strands; deterministic fixtures only for tests and offline UI development.
+- **Model:** OpenAI Responses API through Strands for the verified local build; Amazon Bedrock through the same runtime port for AWS deployment; deterministic fixtures only for tests.
 - **Local persistence:** SQLite in WAL mode.
 - **Local workflow:** a transactional SQLite outbox publishes to a durable pub/sub adapter; a configurable pool of Operations subscribers consumes leased deliveries. No in-memory timer or process-local queue is a source of truth.
 - **Frontend:** React, TypeScript, Vite, TanStack Query, React Router, CSS variables; avoid a heavyweight component system.
@@ -138,6 +138,10 @@ reason, wake time, and ticket version for restart recovery and operator visibili
 Implements: `prd.md > Epic 3`, `Epic 4`
 
 - `search_building_knowledge(query)`
+- `list_location_sensors(sensor_type)`
+- `read_live_sensor(sensor_id)`
+- `read_sensor_history(sensor_id, limit)`
+- `search_maintenance_history(sensor_type)`
 - `get_asset(location_id, asset_type)`
 - `get_current_telemetry(asset_id, point_names)`
 - `get_telemetry_history(asset_id, point_names, window)`
@@ -307,7 +311,7 @@ Create the repository, contracts, migrations, API, worker loop, SSE, and a simpl
 
 ### Stage 2 — Real Strands path, September 4–5
 
-Add classification, structured decisions, tools, hooks, and Bedrock model configuration. Replace the enquiry fixture with a real Strands invocation and retain deterministic tests.
+Add classification, structured decisions, typed read tools, and provider configuration. Verify the local Strands + OpenAI invocation, retain deterministic tests, and preserve the Bedrock adapter for the AWS stage.
 
 ### Stage 3 — Safe action path, September 5–6
 

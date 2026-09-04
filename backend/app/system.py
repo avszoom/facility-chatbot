@@ -42,6 +42,8 @@ class ApplicationSystem:
     def providers(self) -> dict[str, str]:
         return {
             "agent_runtime": self.agent.name,
+            "agent_provider": self.agent.provider,
+            "agent_model": self.agent.model_id,
             "persistence": type(self.repository).__name__,
             "scheduler": "SQLiteLeasedJobWorker",
             "message_bus": type(self.message_bus).__name__,

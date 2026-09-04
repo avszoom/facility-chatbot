@@ -184,6 +184,9 @@ export interface LiveOperations {
   agent: {
     status: string;
     runtime: string;
+    provider: string;
+    model: string;
+    real_model: boolean;
     worker_count: number;
     active_executions: number;
     queued_tasks: number;

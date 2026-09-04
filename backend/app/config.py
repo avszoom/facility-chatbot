@@ -15,6 +15,11 @@ class Settings:
     app_env: str = "local"
     database_path: Path = Path("data/buildingops.db")
     agent_runtime: str = "deterministic"
+    openai_api_key: str | None = None
+    openai_model_id: str = "gpt-5.2"
+    openai_store: bool = False
+    openai_reasoning_effort: str = "low"
+    openai_max_output_tokens: int = 1200
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-20250514-v1:0"
     aws_region: str = "us-east-1"
     worker_poll_seconds: float = 0.25
@@ -36,6 +41,14 @@ class Settings:
             app_env=os.getenv("APP_ENV", "local"),
             database_path=Path(os.getenv("DATABASE_PATH", "data/buildingops.db")),
             agent_runtime=os.getenv("AGENT_RUNTIME", "deterministic").lower(),
+            openai_api_key=os.getenv("OPENAI_API_KEY") or None,
+            openai_model_id=os.getenv("OPENAI_MODEL", "gpt-5.2"),
+            openai_store=os.getenv("OPENAI_STORE", "false").lower()
+            in {"1", "true", "yes", "on"},
+            openai_reasoning_effort=os.getenv("OPENAI_REASONING_EFFORT", "low"),
+            openai_max_output_tokens=max(
+                300, int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "1200"))
+            ),
             bedrock_model_id=os.getenv(
                 "BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0"
             ),

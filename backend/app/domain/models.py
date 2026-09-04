@@ -175,6 +175,11 @@ class AgentDecision(Model):
     confidence: float = Field(ge=0, le=1)
     rationale: str
     user_update: str
+    evidence_sensor_ids: list[str] = Field(default_factory=list)
+    diagnosis: str = ""
+    tool_calls: list[str] = Field(default_factory=list)
+    model_provider: str | None = None
+    model_id: str | None = None
 
 
 class ApprovalRequest(Model):

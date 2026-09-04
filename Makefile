@@ -1,4 +1,4 @@
-.PHONY: setup seed run run-operations run-world run-api run-worker run-simulator run-ui test test-agent verify-strands demo-check demo-rehearsal verify frontend-build secret-scan clean-data
+.PHONY: setup seed run run-operations run-world run-api run-worker run-simulator run-ui test test-agent verify-strands verify-openai demo-check demo-rehearsal verify frontend-build secret-scan clean-data
 
 PYTHON ?= .venv/bin/python
 PIP ?= .venv/bin/pip
@@ -41,6 +41,9 @@ test-agent:
 
 verify-strands:
 	$(PYTHON) scripts/verify_strands.py
+
+verify-openai:
+	$(PYTHON) scripts/verify_openai.py
 
 demo-check:
 	$(PYTHON) scripts/demo_check.py

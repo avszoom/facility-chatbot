@@ -235,8 +235,19 @@ class LocalBuildingProvider:
         )
         text = f"{ticket.subject} {ticket.description}".lower()
         if primary is None:
-            preferred = "Temperature" if any(word in text for word in ("warm", "hot", "cold", "temperature")) else None
-            primary = next((sensor for sensor in floor_sensors if sensor.get("type") == preferred), None)
+            symptom_types = (
+                (("burning", "smell", "odor", "air quality", "smoke"), ("VOC / odor",)),
+                (("flicker", "electric", "power", "sparking", "light"), ("Electrical load", "Cabinet temperature")),
+                (("stuffy", "co2", "co₂", "ventilation"), ("CO₂",)),
+                (("humid", "damp", "moist"), ("Humidity",)),
+                (("crowd", "occupancy", "people"), ("Occupancy",)),
+                (("warm", "hot", "cold", "temperature"), ("Temperature",)),
+            )
+            preferred = next(
+                (types for words, types in symptom_types if any(word in text for word in words)),
+                (),
+            )
+            primary = next((sensor for sensor in floor_sensors if sensor.get("type") in preferred), None)
         history = state["sensor_history"].get(primary["id"], [])[-12:] if primary else []
         maintenance = [
             deepcopy(item)
@@ -250,6 +261,10 @@ class LocalBuildingProvider:
             "correlation": "ticket-linked condition" if correlated else "location and symptom match",
             "primary_sensor": deepcopy(primary),
             "nearby_sensors": floor_sensors,
+            "sensor_histories": {
+                sensor["id"]: deepcopy(state["sensor_history"].get(sensor["id"], [])[-12:])
+                for sensor in floor_sensors
+            },
             "trend": deepcopy(history),
             "maintenance_history": maintenance,
             "sources": ["occupant request", "live BMS telemetry", "rolling sensor history", "maintenance records"],
@@ -338,8 +353,8 @@ class LocalBuildingProvider:
     def set_temperature_setpoint(self, asset_id: str, value: float) -> dict[str, Any]:
         state = self._state()
         asset = state["assets"].get(asset_id)
-        if not asset and asset_id in state["sensor_overrides"]:
-            sensor = state["sensor_overrides"][asset_id]
+        sensor = state["sensors"].get(asset_id)
+        if not asset and sensor and sensor.get("type") == "Temperature":
             before = deepcopy(sensor)
             sensor.update(
                 {
@@ -352,7 +367,17 @@ class LocalBuildingProvider:
                     "numeric_value": float(value) + 0.7,
                 }
             )
-            state["sensors"][asset_id] = deepcopy(sensor)
+            state["sensors"][asset_id] = sensor
+            if asset_id in state["sensor_overrides"]:
+                state["sensor_overrides"][asset_id] = deepcopy(sensor)
+            state["sensor_history"].setdefault(asset_id, []).append(
+                {
+                    "recorded_at": datetime.now(UTC).isoformat(),
+                    "numeric_value": sensor["numeric_value"],
+                    "value": sensor["value"],
+                    "state": sensor["state"],
+                }
+            )
             state["updated_at"] = datetime.now(UTC).isoformat()
             self.repository.set_state(self.STATE_KEY, state)
             return {"before": before, "after": deepcopy(sensor), "command": "set_temperature_setpoint"}
@@ -371,16 +396,23 @@ class LocalBuildingProvider:
     def complete_incident_repair(self, asset_id: str) -> dict[str, Any]:
         state = self._state()
         asset = state["assets"].get(asset_id)
-        if asset_id in state["sensor_overrides"]:
-            sensor = state["sensor_overrides"][asset_id]
+        sensor = state["sensors"].get(asset_id)
+        if sensor and sensor.get("type") in {
+            "VOC / odor",
+            "CO₂",
+            "Humidity",
+            "Electrical load",
+            "Cabinet temperature",
+        }:
             before = deepcopy(sensor)
             if sensor.get("type") == "VOC / odor":
-                sensor.update({"value": "18 ppb", "voc_ppb": 18.0})
+                sensor.update({"value": "18 ppb", "voc_ppb": 18.0, "numeric_value": 18.0})
             elif sensor.get("type") == "Cabinet temperature":
-                sensor.update({"value": "84.2°F", "cabinet_temperature_f": 84.2, "current_amps": 30.4})
+                sensor.update({"value": "84.2°F", "cabinet_temperature_f": 84.2, "current_amps": 30.4, "numeric_value": 84.2})
             sensor.update({"state": "Normal", "status": "operational", "seen": "Live"})
-            sensor["numeric_value"] = float(sensor.get("voc_ppb", sensor.get("cabinet_temperature_f", 0)))
-            state["sensors"][asset_id] = deepcopy(sensor)
+            state["sensors"][asset_id] = sensor
+            if asset_id in state["sensor_overrides"]:
+                state["sensor_overrides"][asset_id] = deepcopy(sensor)
             if asset:
                 asset.update({"cabinet_temperature_f": 84.2, "current_amps": 30.4, "status": "operational"})
                 asset.pop("fault", None)
@@ -415,6 +447,31 @@ class LocalBuildingProvider:
                 "summary": f"{sensor.get('type', 'Sensor')} at {sensor.get('area', ticket.location_id)} is {sensor.get('value', 'stable')} and reporting {sensor.get('state', 'Normal').lower()}.",
                 "readings": sensor,
             }
+        actions = self.repository.list_actions(ticket.ticket_id)
+        requested_asset_id = next(
+            (
+                str(action.requested["asset_id"])
+                for action in reversed(actions)
+                if action.requested.get("asset_id")
+            ),
+            None,
+        )
+        if requested_asset_id:
+            asset = self.telemetry(requested_asset_id)
+            if asset.get("type") == "Temperature":
+                passed = asset.get("state") == "Normal" and 68 <= float(asset.get("numeric_value", 0)) <= 75
+                return {
+                    "passed": passed,
+                    "summary": f"{asset['id']} is {asset['value']} after the approved setpoint change.",
+                    "readings": asset,
+                }
+            if ticket.kind == TicketKind.INCIDENT and asset.get("id"):
+                passed = asset.get("state") == "Normal" and asset.get("status") == "operational"
+                return {
+                    "passed": passed,
+                    "summary": f"{asset['id']} is reporting {asset.get('value', 'stable')} and {asset.get('state', 'unknown').lower()} after repair.",
+                    "readings": asset,
+                }
         if ticket.kind == TicketKind.SERVICE_REQUEST:
             asset = self.telemetry("AHU-ZONE-4B")
             passed = asset["temperature_f"] <= 74.0 and 68 <= asset["setpoint_f"] <= 75

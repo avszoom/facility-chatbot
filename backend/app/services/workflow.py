@@ -6,6 +6,7 @@ from typing import Any
 from backend.app.agents.ports import AgentRuntime
 from backend.app.domain.models import (
     ActionRecord,
+    AgentDecision,
     MessageDelivery,
     RiskTier,
     Ticket,
@@ -288,6 +289,24 @@ class WorkflowService:
             payload={**decision.model_dump(mode="json"), "runtime": self.agent.name},
             key="AGENT-DECISION",
         )
+        self._event(
+            ticket,
+            "agent.tools_completed",
+            (
+                f"{self.agent.name} used {len(decision.tool_calls)} trusted tool call"
+                f"{'s' if len(decision.tool_calls) != 1 else ''} and cited "
+                f"{', '.join(decision.evidence_sensor_ids) if decision.evidence_sensor_ids else 'the building knowledge base'}."
+            ),
+            payload={
+                "runtime": self.agent.name,
+                "provider": decision.model_provider,
+                "model": decision.model_id,
+                "tools": decision.tool_calls,
+                "evidence_sensor_ids": decision.evidence_sensor_ids,
+                "diagnosis": decision.diagnosis,
+            },
+            key="AGENT-TOOLS",
+        )
         wake = datetime.now(UTC) + timedelta(seconds=self.action_delay_seconds)
         self._transition(
             ticket,
@@ -314,13 +333,14 @@ class WorkflowService:
     def _execute_decision(self, ticket: Ticket, job: WorkflowJob) -> None:
         if ticket.status != TicketStatus.WORKING:
             return
-        selected_action = job.payload.get("decision", {}).get("selected_action", "escalate")
+        decision = AgentDecision.model_validate(job.payload.get("decision", {}))
+        selected_action = decision.selected_action
         if selected_action == "answer_enquiry":
             self._answer_enquiry(ticket, job.payload.get("knowledge_result"))
         elif selected_action == "inspect_temperature":
-            self._handle_temperature(ticket)
+            self._handle_temperature(ticket, decision)
         elif selected_action == "investigate_incident":
-            self._investigate_incident(ticket)
+            self._investigate_incident(ticket, decision)
         else:
             self._transition(ticket, TicketStatus.ESCALATED)
             rationale = job.payload.get("decision", {}).get("rationale", "No eligible autonomous action was found.")
@@ -352,17 +372,25 @@ class WorkflowService:
             key="RESOLVED",
         )
 
-    def _handle_temperature(self, ticket: Ticket) -> None:
-        asset = self.building.asset_at(ticket.location_id, "hvac_zone")
+    def _handle_temperature(self, ticket: Ticket, decision: AgentDecision) -> None:
+        asset = None
+        for sensor_id in decision.evidence_sensor_ids:
+            candidate = self.building.telemetry(sensor_id)
+            if candidate.get("type") == "Temperature":
+                asset = candidate
+                break
+        asset = asset or self.building.asset_at(ticket.location_id, "hvac_zone")
         if not asset:
             self._transition(ticket, TicketStatus.ESCALATED)
             self._event(ticket, "ticket.escalated", "No controllable HVAC zone was found.", key="NO-ASSET")
             return
         before = self.building.telemetry(asset["asset_id"])
+        temperature = float(before.get("temperature_f", before.get("numeric_value", 0)))
+        setpoint = float(before.get("setpoint_f", 72.0))
         self._event(
             ticket,
             "evidence.collected",
-            f"{asset['name']} is {before['temperature_f']:.1f}°F against a {before['setpoint_f']:.1f}°F setpoint.",
+            f"{asset['name']} is {temperature:.1f}°F against a {setpoint:.1f}°F setpoint.",
             payload={"asset": asset, "telemetry": before},
             key="TEMP-EVIDENCE",
         )
@@ -380,7 +408,7 @@ class WorkflowService:
         self._event(
             ticket,
             "action.completed",
-            f"Adjusted the approved setpoint from {before['setpoint_f']:.1f}°F to {target:.1f}°F under policy {policy.rule}.",
+            f"Adjusted the approved setpoint from {setpoint:.1f}°F to {target:.1f}°F under policy {policy.rule}.",
             payload=action.model_dump(mode="json"),
             key="SETPOINT-COMPLETE",
         )
@@ -403,16 +431,20 @@ class WorkflowService:
         )
         self._send_update(ticket, "I made a policy-safe temperature adjustment and am verifying the room response before closing the ticket.", key="VERIFY-WAIT")
 
-    def _investigate_incident(self, ticket: Ticket) -> None:
+    def _investigate_incident(self, ticket: Ticket, decision: AgentDecision) -> None:
         correlated = self.building.condition_for_ticket(ticket.ticket_id)
-        asset = correlated["sensor"] if correlated else self.building.asset_at(ticket.location_id, "electrical_panel")
+        asset = correlated["sensor"] if correlated else None
+        if not asset and decision.evidence_sensor_ids:
+            evidence = [self.building.telemetry(sensor_id) for sensor_id in decision.evidence_sensor_ids]
+            asset = next((item for item in evidence if item.get("state") in {"Warning", "Critical"}), evidence[0])
+        asset = asset or self.building.asset_at(ticket.location_id, "electrical_panel")
         if not asset:
             self._transition(ticket, TicketStatus.ESCALATED)
             self._event(ticket, "ticket.escalated", "No correlated building sensor or candidate asset was found.", key="NO-BUILDING-ASSET")
             return
         telemetry = self.building.telemetry(asset["asset_id"])
         history = self.building.history(asset["asset_id"])
-        is_air_quality = telemetry.get("type") == "VOC / odor"
+        is_air_quality = telemetry.get("type") in {"VOC / odor", "CO₂", "Humidity"}
         trade = "indoor_air_quality" if is_air_quality else "electrical"
         action_type = "dispatch_safety_technician" if is_air_quality else "dispatch_electrical_technician"
         procedure = (

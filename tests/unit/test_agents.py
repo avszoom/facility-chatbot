@@ -1,4 +1,9 @@
-from backend.app.agents.runtime import DeterministicAgentRuntime, StrandsAgentRuntime
+from backend.app.agents.runtime import (
+    DeterministicAgentRuntime,
+    OpenAIStrandsRuntime,
+    StrandsAgentRuntime,
+    runtime_from_settings,
+)
 from backend.app.config import Settings
 from backend.app.domain.models import Ticket, TicketKind, TicketStatus, utc_now
 
@@ -34,4 +39,21 @@ def test_deterministic_runtime_classifies_supported_paths():
 
 def test_strands_runtime_is_a_real_selectable_boundary():
     runtime = StrandsAgentRuntime(Settings(agent_runtime="strands"))
-    assert runtime.name == "strands-local"
+    assert runtime.name == "strands-bedrock"
+    assert runtime.real_model is True
+
+
+def test_openai_runtime_is_a_strands_boundary_without_exposing_key():
+    runtime = runtime_from_settings(
+        Settings(
+            agent_runtime="openai",
+            openai_model_id="gpt-5.2",
+            **{"openai_api_key": "test-only"},
+        )
+    )
+
+    assert isinstance(runtime, OpenAIStrandsRuntime)
+    assert runtime.name == "strands-openai"
+    assert runtime.provider == "openai-responses"
+    assert runtime.model_id == "gpt-5.2"
+    assert "test-only" not in repr(runtime)

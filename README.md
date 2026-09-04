@@ -14,7 +14,21 @@ make run
 
 Open <http://127.0.0.1:5173>. The API runs at <http://127.0.0.1:8000>.
 
-The default `AGENT_RUNTIME=deterministic` is credential-free and repeatable. Set `AGENT_RUNTIME=strands`, `AWS_REGION`, and `BEDROCK_MODEL_ID` to exercise the real Strands/Bedrock path with your AWS credentials. The UI shows the active runtime.
+The committed default `AGENT_RUNTIME=deterministic` is credential-free and repeatable.
+For the real local agent, put these values in the ignored `.env` file:
+
+```dotenv
+AGENT_RUNTIME=openai
+OPENAI_API_KEY=your-key-here
+OPENAI_MODEL=gpt-5.2
+OPENAI_STORE=false
+```
+
+The key is read only by the Operations service and is never returned by an API,
+written to an event, or bundled into the browser. The Strands agent uses OpenAI's
+Responses API, while the ticket state machine and policy gateway remain provider
+independent. `AGENT_RUNTIME=bedrock` plus AWS credentials selects the AWS model path.
+The Agent activity page identifies the active runtime, provider, and model.
 
 `make run` starts three independently replaceable service groups: **Operations**
 (API plus three durable workers), **Building World**, and **Web UI**.
@@ -39,11 +53,13 @@ service requests, or incidents, change the automatic cadence, and pause or resum
 continuous generation. Every controlled request is still published to
 `building.events` and consumed by Operations.
 
-For every operational ticket, the agent correlates four sources before deciding:
-the complaint (when present), the linked live sensor, nearby floor telemetry and
-trend history, and relevant maintenance records. The resulting evidence summary is
-stored as a public `evidence.correlated` event; private chain-of-thought is never
-shown. A sensor-only ticket follows the same durable workflow as an occupant report.
+For every operational ticket, the model chooses among six live sensors at the
+reported floor, reads the relevant rolling histories, and can search maintenance
+records and the building knowledge base. Its typed decision must cite exact sensor
+IDs; unknown or cross-floor IDs are rejected. Public `agent.tools_completed` and
+`evidence.correlated` events show what evidence was used without exposing private
+chain-of-thought. A sensor-only ticket follows the same durable workflow as an
+occupant report.
 
 To run each service boundary in its own terminal instead:
 
@@ -76,6 +92,8 @@ concurrently. The local default is `3`. Reliability controls are
 make verify
 make demo-rehearsal RUNS=3
 make verify-strands
+# Makes one live API request using the ignored .env key
+make verify-openai
 ```
 
 See [the AWS replacement map](docs/aws-migration.md), [reuse disclosure](REUSE_DISCLOSURE.md), and [implementation checklist](docs/hackathon-build/checklist.md).

@@ -42,6 +42,7 @@ def test_new_request_exposes_each_live_agent_phase(system):
         "agent.started",
         "evidence.correlated",
         "agent.decision",
+        "agent.tools_completed",
         "message.sent",
         "evidence.collected",
         "action.completed",
@@ -54,6 +55,28 @@ def test_new_request_exposes_each_live_agent_phase(system):
     assert detail.workflow.workflow_id == f"WF-{ticket.ticket_id}"
     assert detail.workflow.status == "completed"
     assert detail.workflow.current_step == "resolved"
+
+
+def test_general_floor_report_uses_the_relevant_sensor_without_a_scripted_condition(system):
+    ticket = system.tickets.create(
+        TicketCreate(
+            subject="Something smells wrong in the pantry",
+            description="There is a strong burning smell near the pantry on floor 5.",
+            requester="Avery Chen",
+            location_id="BLDG-A-F05-PANTRY",
+        )
+    )
+
+    run_agent_steps(system)
+    detail = system.tickets.detail(ticket.ticket_id)
+    decision = next(event for event in detail.events if event.event_type == "agent.decision")
+    tools = next(event for event in detail.events if event.event_type == "agent.tools_completed")
+
+    assert detail.ticket.status == TicketStatus.NEEDS_APPROVAL
+    assert decision.payload["evidence_sensor_ids"] == ["VOC-05-01"]
+    assert tools.payload["evidence_sensor_ids"] == ["VOC-05-01"]
+    assert detail.actions[0].requested["asset_id"] == "VOC-05-01"
+    assert detail.actions[0].requested["trade"] == "indoor_air_quality"
 
 
 def test_service_request_closes_only_after_verification(system):
