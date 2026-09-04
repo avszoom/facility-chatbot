@@ -18,5 +18,6 @@ def system(tmp_path: Path):
             action_delay_seconds=0,
             technician_delay_seconds=0,
             verification_delay_seconds=0,
+            simulation_enabled=True,
         )
     )

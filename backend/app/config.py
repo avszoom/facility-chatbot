@@ -32,7 +32,7 @@ class Settings:
     action_delay_seconds: float = 1.6
     technician_delay_seconds: float = 12.0
     verification_delay_seconds: float = 3.0
-    simulation_enabled: bool = True
+    simulation_enabled: bool = False
     simulation_interval_seconds: float = 45.0
 
     @classmethod
@@ -71,7 +71,7 @@ class Settings:
             verification_delay_seconds=max(
                 0.0, float(os.getenv("VERIFICATION_DELAY_SECONDS", "3"))
             ),
-            simulation_enabled=os.getenv("SIMULATION_ENABLED", "true").lower()
+            simulation_enabled=os.getenv("SIMULATION_ENABLED", "false").lower()
             not in {"0", "false", "no", "off"},
             simulation_interval_seconds=max(
                 5.0, float(os.getenv("SIMULATION_INTERVAL_SECONDS", "45"))

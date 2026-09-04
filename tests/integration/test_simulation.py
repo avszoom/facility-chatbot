@@ -97,6 +97,19 @@ def test_generator_controls_cadence_count_and_request_type(system):
     assert system.simulation.status()["issues_generated"] == 3
 
 
+def test_paused_request_generation_keeps_building_sensors_live(system):
+    system.simulation.configure(running=False, interval_seconds=45)
+    ticket_count = len(system.tickets.list())
+
+    system.building.advance_sensors(now=datetime.now(UTC) + timedelta(seconds=5))
+
+    assert system.simulation.tick() is None
+    assert len(system.tickets.list()) == ticket_count
+    snapshot = system.building.snapshot()
+    assert snapshot["last_sensor_tick"] is not None
+    assert snapshot["health"]["total"] == 60
+
+
 def test_receptionist_request_is_published_then_consumed_by_operations(system):
     client = TestClient(create_app(system))
     published = client.post(

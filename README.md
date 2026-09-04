@@ -40,12 +40,12 @@ step instead of starting the ticket over.
 
 The Building World owns a 60-device digital twin across all ten floors. It advances
 temperature, CO₂, humidity, VOC/odor, occupancy, and electrical telemetry every two
-seconds and keeps bounded rolling history. It can publish occupant requests or open
-a ticket directly from an autonomous sensor anomaly every 45 seconds by default; set
-`SIMULATION_INTERVAL_SECONDS` to change the cadence, or
-`SIMULATION_ENABLED=false` to turn it off. The **Agent live** workspace shows both
-engines, the durable handoff between them, public decision summaries, tool outcomes,
-and continuously updated impact totals.
+seconds and keeps bounded rolling history. Automatic synthetic ticket creation starts
+paused so a clean database contains only requests you submit. Start it explicitly in
+the **Request generator** tab when you want continuous scenarios; its cadence defaults
+to 45 seconds. Sensor monitoring continues whether request generation is running or
+paused. The **Agent live** workspace shows both engines, the durable handoff, public
+decision summaries, tool outcomes, and continuously updated impact totals.
 
 The compact **Request generator** tab controls the Building World without bypassing
 the production-shaped path. Choose 1–20 requests, restrict the batch to enquiries,

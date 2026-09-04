@@ -1,5 +1,12 @@
 # Build Notes
 
+## 2026-09-03 — Manual-first request generation
+
+- Confirmed from durable message metadata that four unexpected requests came from the `synthetic_occupant` source at the configured 45-second cadence; the user-created request was separately identified as `receptionist_console`.
+- Changed clean-start behavior so automatic synthetic ticket creation is paused until explicitly enabled in Request generator.
+- Kept the Building World independent: all 60 sensors continue advancing and recording history while automatic request generation is paused.
+- Preserved the persisted generator control so operators can deliberately start, stop, and tune continuous scenarios without changing sensor monitoring.
+
 ## 2026-09-03 — Live OpenAI reasoning through Strands
 
 - Added an OpenAI Responses API model adapter behind the existing `AgentRuntime` contract while retaining the Bedrock adapter for the AWS stage and the deterministic adapter for repeatable tests.
