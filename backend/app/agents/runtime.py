@@ -27,6 +27,14 @@ class DeterministicAgentRuntime:
 
     def decide(self, ticket: Ticket, context: dict[str, Any]) -> AgentDecision:
         text = f"{ticket.subject} {ticket.description}".lower()
+        building_facts = context.get("building_facts", {})
+        primary_sensor = building_facts.get("primary_sensor") or {}
+        sensor_state = primary_sensor.get("state")
+        sensor_type = str(primary_sensor.get("type", "")).lower()
+        sensor_incident = sensor_state in {"Warning", "Critical"} and any(
+            category in sensor_type
+            for category in ("voc", "odor", "cabinet", "electrical", "smoke", "co₂")
+        )
         safety = [
             label for term, label in (
                 ("burning", "possible electrical fire"),
@@ -38,25 +46,36 @@ class DeterministicAgentRuntime:
             )
             if term in text
         ]
-        if safety:
+        if sensor_incident:
+            safety.append(f"{primary_sensor.get('id', 'building sensor')} {sensor_state.lower()} alarm")
+        if safety or sensor_incident:
             return AgentDecision(
                 kind=TicketKind.INCIDENT,
-                priority=TicketPriority.EMERGENCY if "smoke" in text or "trapped" in text else TicketPriority.HIGH,
+                priority=TicketPriority.EMERGENCY if "smoke" in text or "trapped" in text or sensor_state == "Critical" else TicketPriority.HIGH,
                 safety_flags=safety,
                 objective="Protect occupants, correlate building evidence, and route qualified physical work.",
                 selected_action="investigate_incident",
-                confidence=0.96,
-                rationale="Safety language and an abnormal building symptom require evidence-led incident handling.",
+                confidence=0.98 if sensor_incident else 0.96,
+                rationale=(
+                    f"Live telemetry from {primary_sensor.get('id')} confirms a {sensor_state.lower()} {primary_sensor.get('type')} condition; the request, trend and maintenance record require evidence-led incident handling."
+                    if sensor_incident
+                    else "Safety language and an abnormal building symptom require evidence-led incident handling."
+                ),
                 user_update="I flagged this for immediate safety triage and started checking the affected systems.",
             )
-        if any(term in text for term in ("warm", "hot", "cold", "temperature", "stuffy")):
+        sensor_comfort = sensor_state in {"Warning", "Critical"} and "temperature" in sensor_type
+        if sensor_comfort or any(term in text for term in ("warm", "hot", "cold", "temperature", "stuffy")):
             return AgentDecision(
                 kind=TicketKind.SERVICE_REQUEST,
                 priority=TicketPriority.NORMAL,
                 objective="Check room conditions and apply only a policy-safe comfort adjustment.",
                 selected_action="inspect_temperature",
-                confidence=0.93,
-                rationale="The request describes an occupied-zone comfort issue with a reversible control path.",
+                confidence=0.97 if sensor_comfort else 0.93,
+                rationale=(
+                    f"Live telemetry from {primary_sensor.get('id')} confirms the reported comfort drift and a reversible control path is available."
+                    if sensor_comfort
+                    else "The request describes an occupied-zone comfort issue with a reversible control path."
+                ),
                 user_update="I’m checking the room conditions and the approved comfort range now.",
             )
         if any(

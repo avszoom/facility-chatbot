@@ -12,7 +12,7 @@ The domain models, state machine, policy rules, action gateway, ticket service, 
 | Retry and dead letters | Leased delivery, exponential retry, terminal `dead_letter` state | SQS visibility timeout, redrive policy, and DLQ | delivery attempts + correlation/idempotency keys |
 | Workflow checkpoints | Versioned `workflow_states` record for every ticket | DynamoDB workflow-state item with conditional version updates | `WorkflowState` |
 | Knowledge | Versioned local JSON | S3 + OpenSearch or Bedrock Knowledge Bases | `KnowledgePort.search` |
-| Telemetry and commands | Seeded building simulator | IoT SiteWise/TwinMaker + IoT Core command adapter | `BuildingPort` |
+| Telemetry and commands | 60-sensor live twin, rolling history, anomaly injection, and safe commands | IoT SiteWise/TwinMaker + IoT Core rules and command adapter | `BuildingPort` |
 | Work orders | Local CMMS simulator | AgentCore Gateway or direct CMMS API | `WorkOrderPort` |
 | Occupant updates | Ticket timeline event | SNS/SES/Amazon Connect | `NotificationPort` |
 | Agent-live aggregation | `/api/operations/live` over durable ticket/event state | DynamoDB streams/materialized metrics + API Gateway | live-operations response schema |

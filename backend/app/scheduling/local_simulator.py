@@ -15,6 +15,7 @@ class LocalBuildingSimulator:
 
     def run_forever(self) -> None:
         while not self.stopped.wait(0.5):
+            self.system.building.advance_sensors()
             self.system.simulation.tick()
 
     def stop(self, *_args) -> None:

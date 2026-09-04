@@ -40,6 +40,7 @@ def test_new_request_exposes_each_live_agent_phase(system):
     assert [event.event_type for event in detail.events] == [
         "ticket.created",
         "agent.started",
+        "evidence.correlated",
         "agent.decision",
         "message.sent",
         "evidence.collected",

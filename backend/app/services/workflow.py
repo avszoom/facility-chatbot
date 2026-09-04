@@ -255,11 +255,26 @@ class WorkflowService:
         if ticket.status != TicketStatus.TRIAGING:
             return
         knowledge_result = self.knowledge.search(f"{ticket.subject} {ticket.description}")
+        building_facts = self.building.investigation_context(ticket)
+        primary = building_facts.get("primary_sensor")
+        maintenance = building_facts.get("maintenance_history", [])
+        if primary:
+            maintenance_note = (
+                f" {len(maintenance)} relevant maintenance record{'s' if len(maintenance) != 1 else ''} matched."
+                if maintenance else " No directly matching maintenance record was found."
+            )
+            self._event(
+                ticket,
+                "evidence.correlated",
+                f"Correlated the request with {primary['id']} at {primary['value']} ({primary['state']}) and {len(building_facts.get('nearby_sensors', [])) - 1} nearby sensors.{maintenance_note}",
+                payload=building_facts,
+                key="CONTEXT-CORRELATED",
+            )
         context = {
             "eligible_actions": ["answer_enquiry", "inspect_temperature", "investigate_incident", "escalate"],
-            "known_locations": ["BLDG-A-F01-FITNESS", "BLDG-A-F04-CONF-4B", "BLDG-A-F07-EAST"],
+            "known_locations": [f"BLDG-A-F{floor:02d}" for floor in range(1, 11)],
             "knowledge_result": knowledge_result,
-            "building_facts": {},
+            "building_facts": building_facts,
         }
         decision = self.agent.decide(ticket, context)
         ticket.kind = decision.kind
@@ -467,7 +482,7 @@ class WorkflowService:
             payload=order.model_dump(mode="json"),
             key="WORK-ORDER",
         )
-        self._send_update(ticket, f"A qualified electrical technician has been dispatched under {order.work_order_id}. I’ll keep this ticket updated while the work is underway.", key="DISPATCHED")
+        self._send_update(ticket, f"A qualified {order.trade.replace('_', ' ')} technician has been dispatched under {order.work_order_id}. I’ll keep this ticket updated while the work is underway.", key="DISPATCHED")
         self._transition(
             ticket,
             TicketStatus.WAITING_TECHNICIAN,

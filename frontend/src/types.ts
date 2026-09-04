@@ -108,6 +108,44 @@ export interface LiveOperations {
     } | null;
   };
   building: {
+    sensors: Record<string, {
+      id: string;
+      asset_id: string;
+      name: string;
+      floor: number;
+      area: string;
+      type: string;
+      numeric_value: number;
+      unit: string;
+      value: string;
+      target: string;
+      state: "Normal" | "Warning" | "Critical";
+      status: string;
+      seen: string;
+      location_id: string;
+      updated_at: string | null;
+    }>;
+    sensor_history: Record<string, Array<{
+      recorded_at: string | null;
+      numeric_value: number;
+      value: string;
+      state: "Normal" | "Warning" | "Critical";
+    }>>;
+    maintenance_history: Array<{
+      date: string;
+      floor: number;
+      asset_type: string;
+      asset_id: string;
+      summary: string;
+      outcome: string;
+    }>;
+    health: {
+      total: number;
+      normal: number;
+      warning: number;
+      critical: number;
+      monitoring: "autonomous";
+    };
     assets: Record<string, {
       asset_id: string;
       name: string;
@@ -141,6 +179,7 @@ export interface LiveOperations {
       location_id: string;
     }>;
     updated_at: string | null;
+    last_sensor_tick: string | null;
   };
   agent: {
     status: string;

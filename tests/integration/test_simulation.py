@@ -187,3 +187,41 @@ def test_floor_five_pantry_odor_correlates_ticket_sensor_and_agent(system):
     assert detail.ticket.status == "needs_approval"
     assert detail.actions[0].requested["asset_id"] == "VOC-05-01"
     assert detail.actions[0].requested["trade"] == "indoor_air_quality"
+
+
+def test_digital_twin_owns_all_sensors_and_rolling_history(system):
+    initial = system.building.snapshot()
+    assert len(initial["sensors"]) == 60
+    assert initial["health"] == {
+        "total": 60,
+        "normal": 60,
+        "warning": 0,
+        "critical": 0,
+        "monitoring": "autonomous",
+    }
+
+    system.building.advance_sensors(now=datetime.now(UTC) + timedelta(seconds=5))
+    advanced = system.building.snapshot()
+    assert advanced["last_sensor_tick"] is not None
+    assert len(advanced["sensor_history"]["AIR-06-01"]) == 2
+
+
+def test_agent_uses_sensor_alarm_and_maintenance_history_without_complaint(system):
+    message = None
+    for _ in range(10):
+        candidate = system.simulation.tick(force=True)
+        if candidate and candidate.payload["scenario"]["type"] == "sensor_anomaly":
+            message = candidate
+            break
+    assert message is not None
+    ticket_id = str(message.payload["ticket_id"])
+    for _ in range(4):
+        system.operations.process_due(now=datetime.now(UTC) + timedelta(hours=1), limit=20)
+
+    detail = system.tickets.detail(ticket_id)
+    correlated = next(event for event in detail.events if event.event_type == "evidence.correlated")
+    decision = next(event for event in detail.events if event.event_type == "agent.decision")
+    assert correlated.payload["primary_sensor"]["id"] == "VOC-06-01"
+    assert correlated.payload["maintenance_history"]
+    assert "Live telemetry" in decision.summary
+    assert detail.ticket.status == "needs_approval"

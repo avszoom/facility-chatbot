@@ -25,7 +25,7 @@ const locationDirectory = {
 };
 
 const emptyMetrics: Metrics = { received: 0, active: 0, resolved: 0, autonomous_resolutions: 0, needs_approval: 0, escalated: 0, human_touches_saved: 0, verified_closures: 0 };
-const emptyLive: LiveOperations = { simulation: { status: "paused", running: false, sequence: 0, issues_generated: 0, last_tick: null, next_tick: new Date().toISOString(), interval_seconds: 45, scenario_count: 10, scenario_types: { enquiry: 8, service_request: 1, incident: 1 }, last_event: null }, building: { assets: {}, history: {}, sensor_overrides: {}, active_conditions: {}, updated_at: null }, agent: { status: "connecting", runtime: "local", worker_count: 3, active_executions: 0, queued_tasks: 0, active_tickets: [] }, messaging: { broker: "SQLite durable pub/sub", topics: 0, pending: 0, processing: 0, completed: 0, retrying: 0, dead_letters: 0, delivery: "at_least_once", idempotent_consumers: true }, recent_events: [], impact: { actions_performed: 0, issues_resolved: 0, resolved_autonomously: 0, needs_user: 0, human_touches_saved: 0, autonomy_rate: 100, verified_resolutions: 0, waiting_external: 0 } };
+const emptyLive: LiveOperations = { simulation: { status: "paused", running: false, sequence: 0, issues_generated: 0, last_tick: null, next_tick: new Date().toISOString(), interval_seconds: 45, scenario_count: 10, scenario_types: { enquiry: 7, service_request: 1, incident: 2 }, last_event: null }, building: { assets: {}, history: {}, sensors: {}, sensor_history: {}, maintenance_history: [], health: { total: 0, normal: 0, warning: 0, critical: 0, monitoring: "autonomous" }, sensor_overrides: {}, active_conditions: {}, last_sensor_tick: null, updated_at: null }, agent: { status: "connecting", runtime: "local", worker_count: 3, active_executions: 0, queued_tasks: 0, active_tickets: [] }, messaging: { broker: "SQLite durable pub/sub", topics: 0, pending: 0, processing: 0, completed: 0, retrying: 0, dead_letters: 0, delivery: "at_least_once", idempotent_consumers: true }, recent_events: [], impact: { actions_performed: 0, issues_resolved: 0, resolved_autonomously: 0, needs_user: 0, human_touches_saved: 0, autonomy_rate: 100, verified_resolutions: 0, waiting_external: 0 } };
 const activeStatuses = new Set<TicketStatus>(["new", "triaging", "working", "waiting_technician", "waiting_verification"]);
 const stageIndex: Record<TicketStatus, number> = { new: 0, triaging: 1, working: 2, needs_approval: 3, waiting_technician: 3, waiting_verification: 4, resolved: 5, escalated: 5 };
 const activityCopy: Record<TicketStatus, string> = { new: "Queued for agent pickup", triaging: "Reading the email and checking context", working: "Executing the selected plan", needs_approval: "Waiting for your approval", waiting_technician: "Technician work is in progress", waiting_verification: "Checking fresh sensor evidence", resolved: "Request completed", escalated: "Transferred for staff review" };
@@ -38,7 +38,7 @@ function occupantFor(ticket: Ticket): Occupant {
 }
 function locationFor(ticket: Ticket, live?: LiveOperations) {
   const condition = live?.building.active_conditions[ticket.ticket_id];
-  const alarm = condition && live ? live.building.sensor_overrides[condition.sensor_id] : null;
+  const alarm = condition && live ? live.building.sensors[condition.sensor_id] || live.building.sensor_overrides[condition.sensor_id] : null;
   if (alarm && condition) return { name: alarm.area, floor: `Floor ${alarm.floor}`, zone: `Live condition · ${condition.condition.replaceAll("_", " ")}`, occupancy: "Live zone", sensor: alarm.id, reading: alarm.value, state: alarm.state === "Normal" ? "Normal" : "Alert" };
   const known = locationDirectory[ticket.location_id as keyof typeof locationDirectory];
   if (known) return known;
@@ -103,6 +103,8 @@ function BuildingView({ tickets, live }: { tickets: Ticket[]; live: LiveOperatio
   const [selectedFloor, setSelectedFloor] = useState(7);
   const [sensorScope, setSensorScope] = useState<"all" | "floor">("all");
   const observedSensors = useMemo(() => {
+    const authoritative = Object.values(live.building.sensors || {});
+    if (authoritative.length) return authoritative;
     const hvac = live.building.assets["AHU-ZONE-4B"];
     const panel = live.building.assets["ELEC-PNL-7A"];
     return sensors.map((sensor) => {

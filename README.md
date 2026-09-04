@@ -24,7 +24,10 @@ exponential retry, a dead-letter state, and idempotent message publication. Ever
 ticket also has a saved `WF-*` checkpoint, so a worker restart resumes the current
 step instead of starting the ticket over.
 
-The simulator publishes an occupant request or building condition every 45 seconds by default; set
+The Building World owns a 60-device digital twin across all ten floors. It advances
+temperature, CO₂, humidity, VOC/odor, occupancy, and electrical telemetry every two
+seconds and keeps bounded rolling history. It can publish occupant requests or open
+a ticket directly from an autonomous sensor anomaly every 45 seconds by default; set
 `SIMULATION_INTERVAL_SECONDS` to change the cadence, or
 `SIMULATION_ENABLED=false` to turn it off. The **Agent live** workspace shows both
 engines, the durable handoff between them, public decision summaries, tool outcomes,
@@ -35,6 +38,12 @@ the production-shaped path. Choose 1–20 requests, restrict the batch to enquir
 service requests, or incidents, change the automatic cadence, and pause or resume
 continuous generation. Every controlled request is still published to
 `building.events` and consumed by Operations.
+
+For every operational ticket, the agent correlates four sources before deciding:
+the complaint (when present), the linked live sensor, nearby floor telemetry and
+trend history, and relevant maintenance records. The resulting evidence summary is
+stored as a public `evidence.correlated` event; private chain-of-thought is never
+shown. A sensor-only ticket follows the same durable workflow as an occupant report.
 
 To run each service boundary in its own terminal instead:
 
