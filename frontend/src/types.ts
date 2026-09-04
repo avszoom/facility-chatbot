@@ -87,12 +87,18 @@ export interface TicketDetail {
 export interface LiveOperations {
   simulation: {
     status: "online" | "paused";
+    running: boolean;
     sequence: number;
     issues_generated: number;
     last_tick: string | null;
     next_tick: string;
     interval_seconds: number;
     scenario_count: number;
+    scenario_types: {
+      enquiry: number;
+      service_request: number;
+      incident: number;
+    };
     last_event: {
       type: string;
       ticket_id: string;

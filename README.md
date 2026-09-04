@@ -30,6 +30,12 @@ The simulator publishes an occupant request or building condition every 45 secon
 engines, the durable handoff between them, public decision summaries, tool outcomes,
 and continuously updated impact totals.
 
+The compact **Request generator** tab controls the Building World without bypassing
+the production-shaped path. Choose 1–20 requests, restrict the batch to enquiries,
+service requests, or incidents, change the automatic cadence, and pause or resume
+continuous generation. Every controlled request is still published to
+`building.events` and consumed by Operations.
+
 To run each service boundary in its own terminal instead:
 
 ```bash

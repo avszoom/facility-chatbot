@@ -9,7 +9,15 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from backend.app.domain.models import ApprovalRequest, PubSubMessage, Ticket, TicketCreate, TicketDetail
+from backend.app.domain.models import (
+    ApprovalRequest,
+    PubSubMessage,
+    SimulationControl,
+    SimulationGenerateRequest,
+    Ticket,
+    TicketCreate,
+    TicketDetail,
+)
 from backend.app.system import ApplicationSystem, build_system
 
 
@@ -117,6 +125,22 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
         if message is None:
             raise HTTPException(status_code=409, detail="Building simulation is paused")
         return message
+
+    @api.post("/api/simulation/control")
+    def simulation_control(request: SimulationControl) -> dict:
+        return runtime.simulation.configure(
+            running=request.running,
+            interval_seconds=request.interval_seconds,
+        )
+
+    @api.post("/api/simulation/generate", response_model=list[PubSubMessage])
+    def simulation_generate(
+        request: SimulationGenerateRequest,
+    ) -> list[PubSubMessage]:
+        return runtime.simulation.generate_batch(
+            count=request.count,
+            scenario_type=request.scenario_type,
+        )
 
     @api.get("/api/tickets", response_model=list[Ticket])
     def list_tickets():

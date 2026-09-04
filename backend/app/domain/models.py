@@ -182,6 +182,16 @@ class ApprovalRequest(Model):
     reason: str = Field(default="", max_length=500)
 
 
+class SimulationControl(Model):
+    running: bool
+    interval_seconds: float = Field(ge=5, le=3600)
+
+
+class SimulationGenerateRequest(Model):
+    count: int = Field(ge=1, le=20)
+    scenario_type: Literal["all", "enquiry", "service_request", "incident"] = "all"
+
+
 class TicketDetail(Model):
     ticket: Ticket
     events: list[TicketEvent]

@@ -69,3 +69,28 @@ def test_published_building_event_survives_process_restart(system):
     assert restarted.repository.get_ticket(ticket_id)
     assert restarted.repository.get_workflow_state(ticket_id)
     assert restarted.message_bus.stats()["completed"] >= 1
+
+
+def test_generator_controls_cadence_count_and_request_type(system):
+    client = TestClient(create_app(system))
+    controlled = client.post(
+        "/api/simulation/control",
+        json={"running": False, "interval_seconds": 90},
+    )
+    assert controlled.status_code == 200
+    assert controlled.json()["status"] == "paused"
+    assert controlled.json()["interval_seconds"] == 90
+
+    generated = client.post(
+        "/api/simulation/generate",
+        json={"count": 3, "scenario_type": "incident"},
+    )
+    assert generated.status_code == 200
+    messages = generated.json()
+    assert len(messages) == 3
+    assert len({message["message_id"] for message in messages}) == 3
+    assert all(
+        message["payload"]["scenario"]["scenario_type"] == "incident"
+        for message in messages
+    )
+    assert system.simulation.status()["issues_generated"] == 3

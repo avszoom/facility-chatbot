@@ -17,6 +17,10 @@ export const api = {
   metrics: () => request<Metrics>("/api/metrics"),
   live: () => request<LiveOperations>("/api/operations/live"),
   simulationPulse: () => request<{ message_id: string }>("/api/simulation/pulse", { method: "POST" }),
+  generateRequests: (payload: { count: number; scenario_type: "all" | "enquiry" | "service_request" | "incident" }) =>
+    request<Array<{ message_id: string }>>("/api/simulation/generate", { method: "POST", body: JSON.stringify(payload) }),
+  configureSimulation: (payload: { running: boolean; interval_seconds: number }) =>
+    request<LiveOperations["simulation"]>("/api/simulation/control", { method: "POST", body: JSON.stringify(payload) }),
   loadSampleRequests: () => request<Ticket[]>("/api/workspace/sample-requests", { method: "POST" }),
   create: (payload: { subject: string; description: string; requester: string; location_id: string }) =>
     request<Ticket>("/api/tickets", { method: "POST", body: JSON.stringify(payload) }),

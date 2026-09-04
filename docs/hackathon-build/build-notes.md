@@ -83,3 +83,10 @@
 - Added a versioned `WF-*` checkpoint for each ticket recording current step, ticket version, wait reason, wake time, attempt, and terminal outcome. Redelivery remains safe through stable message/job/event/action identifiers and status guards.
 - Updated Agent Activity to expose the message broker, queued deliveries, retries, dead letters, acknowledgement count, and checkpoint version.
 - Verification: 20 Python tests, 2 frontend tests, production UI build, all three lifecycle checks, a real three-process pub/sub run, and the source secret scan passed.
+
+## 2026-09-03 — Controlled request generation
+
+- Added a compact Request generator navigation tab for controlling the Building World during testing and presentation.
+- Operators can publish 1–20 requests at once, select a mixed batch or only enquiries, service requests, or incidents, change the continuous-generation interval, and pause or resume the background source.
+- Generator controls publish through `building.events`; they do not call the ticket workflow directly. The page exposes generated, queued, acknowledged, retrying, dead-lettered, and worker totals.
+- Verification: 21 Python tests, 2 frontend tests, production UI build, and a live three-worker run that published three enquiry events, acknowledged all deliveries, and resolved all generated requests autonomously.

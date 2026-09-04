@@ -178,6 +178,8 @@ Use Strands hooks before and after tool calls to attach ticket/correlation IDs, 
 - `POST /api/tickets/{id}/simulate-technician` — demo-only technician completion.
 - `POST /api/tickets/{id}/advance-time` — demo-only accelerated wait.
 - `POST /api/demo/seed` — reset and create the three hero tickets.
+- `POST /api/simulation/generate` — publish a controlled batch by count and scenario type.
+- `POST /api/simulation/control` — persist automatic generation cadence and running state.
 - `GET /api/events` — SSE activity stream.
 
 All mutation endpoints accept or derive an idempotency key and return the current ticket representation.
