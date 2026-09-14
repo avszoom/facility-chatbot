@@ -7,7 +7,7 @@ import json
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from backend.app.domain.models import (
     ApprovalRequest,
@@ -27,6 +27,19 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
     runtime = system or build_system()
     api = FastAPI(title="BuildingOps Autopilot API", version="0.1.0")
     api.state.system = runtime
+    if runtime.settings.app_env == "aws_ec2":
+        @api.middleware("http")
+        async def deployment_request_guard(request: Request, call_next):
+            # Authentication is enforced at the HTTPS reverse proxy. API listens
+            # only on loopback. Reject browser cross-origin writes and prevent
+            # test-only endpoints from fast-forwarding or corrupting workflows.
+            if request.url.path.startswith("/api/workspace/"):
+                return JSONResponse(status_code=404, content={"detail": "Not available in this deployment"})
+            if request.method not in {"GET", "HEAD", "OPTIONS"}:
+                origin = request.headers.get("origin")
+                if origin and origin != "https://" + request.headers.get("host", ""):
+                    return JSONResponse(status_code=403, content={"detail": "Cross-origin writes are not allowed"})
+            return await call_next(request)
     api.add_middleware(
         CORSMiddleware,
         allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],

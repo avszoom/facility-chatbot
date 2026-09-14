@@ -1,6 +1,6 @@
 import type { CustomRequestInput, LiveOperations, Metrics, PublishedRequest, Ticket, TicketDetail } from "./types";
 
-const BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
+const BASE = import.meta.env.VITE_API_BASE ?? (import.meta.env.PROD ? "" : "http://127.0.0.1:8000");
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BASE}${path}`, {

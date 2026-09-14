@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#06111f"/><stop offset="1" stop-color="#0c1d33"/></linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#38bdf8"/><stop offset="1" stop-color="#2563eb"/></linearGradient>
+    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#a78bfa"/><stop offset="1" stop-color="#6d28d9"/></linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#34d399"/><stop offset="1" stop-color="#059669"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="shadow"><feDropShadow dx="0" dy="12" stdDeviation="18" flood-opacity=".35"/></filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#38bdf8"/></marker>
+    <style>
+      .title{font:700 54px Inter,Arial,sans-serif;fill:#f8fafc}.sub{font:400 23px Inter,Arial,sans-serif;fill:#94a3b8}.h{font:700 24px Inter,Arial,sans-serif;fill:#f8fafc}.k{font:700 14px Inter,Arial,sans-serif;letter-spacing:2px;fill:#7dd3fc}.b{font:500 17px Inter,Arial,sans-serif;fill:#cbd5e1}.s{font:400 14px Inter,Arial,sans-serif;fill:#94a3b8}.chip{font:700 13px Inter,Arial,sans-serif;fill:#dbeafe}.line{stroke:#38bdf8;stroke-width:3;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <circle cx="1690" cy="80" r="270" fill="#2563eb" opacity=".08"/><circle cx="210" cy="980" r="330" fill="#7c3aed" opacity=".07"/>
+  <text x="90" y="90" class="k">BUILDINGOPS AUTOPILOT · DEPLOYED AWS ARCHITECTURE</text>
+  <text x="90" y="155" class="title">From resident request to verified resolution</text>
+  <text x="90" y="198" class="sub">Parallel durable ticket loops · bounded Strands specialists · policy-controlled actions</text>
+
+  <g filter="url(#shadow)">
+    <rect x="80" y="275" width="260" height="220" rx="24" fill="#10243d" stroke="#2d4b6d"/>
+    <circle cx="140" cy="335" r="26" fill="url(#blue)"/><path d="M126 334h28M126 326h28M126 342h18" stroke="white" stroke-width="3"/>
+    <text x="185" y="327" class="k">PEOPLE</text><text x="185" y="355" class="h" style="font-size:19px">Resident</text><text x="185" y="382" class="h" style="font-size:19px">+ Concierge</text>
+    <text x="115" y="405" class="b">Create requests</text><text x="115" y="438" class="b">Review exceptions</text><text x="115" y="471" class="b">Track live outcomes</text>
+
+    <rect x="420" y="255" width="400" height="260" rx="24" fill="#10243d" stroke="#2d4b6d"/>
+    <text x="455" y="304" class="k">PUBLIC AWS HOST</text><text x="455" y="343" class="h">Authenticated operations console</text>
+    <rect x="455" y="375" width="150" height="92" rx="14" fill="#0b1a2d" stroke="#2563eb"/><text x="480" y="410" class="chip">CADDY · HTTPS</text><text x="480" y="440" class="s">UI + API gateway</text>
+    <rect x="625" y="375" width="160" height="92" rx="14" fill="#0b1a2d" stroke="#2563eb"/><text x="648" y="410" class="chip">REACT + FASTAPI</text><text x="648" y="440" class="s">Live SSE dashboard</text>
+    <text x="455" y="494" class="s">Amazon EC2 · systemd supervision · IMDSv2</text>
+
+    <rect x="900" y="255" width="440" height="260" rx="24" fill="#10243d" stroke="#7c3aed"/>
+    <text x="935" y="304" class="k" fill="#c4b5fd">DURABLE OPERATIONS PLANE</text><text x="935" y="343" class="h">One loop per ticket, three workers</text>
+    <rect x="935" y="375" width="175" height="92" rx="14" fill="#17132d" stroke="#8b5cf6"/><text x="958" y="410" class="chip">COORDINATOR</text><text x="958" y="440" class="s">Selects one next step</text>
+    <rect x="1130" y="375" width="175" height="92" rx="14" fill="#17132d" stroke="#8b5cf6"/><text x="1152" y="410" class="chip">POLICY GATEWAY</text><text x="1152" y="440" class="s">Authorizes every write</text>
+    <text x="935" y="494" class="s">Retries · idempotency · leases · persisted checkpoints</text>
+
+    <rect x="1420" y="255" width="420" height="260" rx="24" fill="#10243d" stroke="#10b981"/>
+    <text x="1455" y="304" class="k" fill="#6ee7b7">MANAGED AI PLANE</text><text x="1455" y="343" class="h">Amazon Bedrock AgentCore</text>
+    <rect x="1455" y="375" width="165" height="92" rx="14" fill="#09251f" stroke="#10b981"/><text x="1478" y="410" class="chip">STRANDS TEAM</text><text x="1478" y="440" class="s">Isolated runtime session</text>
+    <rect x="1640" y="375" width="165" height="92" rx="14" fill="#09251f" stroke="#10b981"/><text x="1664" y="410" class="chip">BEDROCK</text><text x="1664" y="440" class="s">Amazon Nova Pro</text>
+    <text x="1455" y="494" class="s">CloudWatch logs + runtime traces</text>
+  </g>
+
+  <path class="line" d="M340 385H420"/><path class="line" d="M820 385H900"/><path class="line" d="M1340 385H1420"/>
+
+  <g filter="url(#shadow)">
+    <rect x="420" y="620" width="400" height="300" rx="24" fill="#10243d" stroke="#2d4b6d"/>
+    <text x="455" y="670" class="k">BUILDING WORLD SERVICE</text><text x="455" y="710" class="h">Live 10-floor digital building</text>
+    <rect x="455" y="748" width="150" height="105" rx="14" fill="#0b1a2d" stroke="#0ea5e9"/><text x="480" y="784" class="chip">SENSORS</text><text x="480" y="812" class="s">Telemetry + history</text><text x="480" y="835" class="s">Simulated adapter</text>
+    <rect x="625" y="748" width="160" height="105" rx="14" fill="#0b1a2d" stroke="#0ea5e9"/><text x="649" y="784" class="chip">REQUEST INTAKE</text><text x="649" y="812" class="s">Resident + controlled</text><text x="649" y="835" class="s">scenario generator</text>
+    <text x="455" y="888" class="s">Independent service · no automatic background tickets</text>
+
+    <rect x="900" y="600" width="440" height="340" rx="24" fill="#10243d" stroke="#7c3aed"/>
+    <text x="935" y="650" class="k" fill="#c4b5fd">DURABLE STATE + EVENTING</text><text x="935" y="690" class="h">SQLite WAL on encrypted EBS</text>
+    <rect x="935" y="728" width="175" height="115" rx="14" fill="#17132d" stroke="#8b5cf6"/><text x="958" y="764" class="chip">PUB / SUB</text><text x="958" y="792" class="s">At-least-once delivery</text><text x="958" y="817" class="s">Retry + dead letter</text>
+    <rect x="1130" y="728" width="175" height="115" rx="14" fill="#17132d" stroke="#8b5cf6"/><text x="1153" y="764" class="chip">WORKFLOW STATE</text><text x="1153" y="792" class="s">Events + evidence</text><text x="1153" y="817" class="s">Resume after restart</text>
+    <text x="935" y="883" class="s">Adapter boundary: replace with SQS/EventBridge + DynamoDB</text>
+
+    <rect x="1420" y="620" width="420" height="300" rx="24" fill="#10243d" stroke="#d97706"/>
+    <text x="1455" y="670" class="k" fill="#fdba74">CONTROLLED TOOLS</text><text x="1455" y="710" class="h">Evidence in, audited action out</text>
+    <rect x="1455" y="748" width="165" height="105" rx="14" fill="#2a1b0c" stroke="#f59e0b"/><text x="1478" y="784" class="chip">KNOWLEDGE + BMS</text><text x="1478" y="812" class="s">Docs + safe HVAC</text><text x="1478" y="835" class="s">Simulated adapters</text>
+    <rect x="1640" y="748" width="165" height="105" rx="14" fill="#2a1b0c" stroke="#f59e0b"/><text x="1663" y="784" class="chip">CMMS + MESSAGE</text><text x="1663" y="812" class="s">Work order + email</text><text x="1663" y="835" class="s">Simulated adapters</text>
+    <text x="1455" y="888" class="s">Human approval only for consequential exceptions</text>
+  </g>
+
+  <path class="line" d="M620 620V540H1080V600"/><path class="line" d="M1120 600V545H1630V620"/>
+  <rect x="80" y="1000" width="1760" height="2" fill="#28415f"/>
+  <circle cx="98" cy="1035" r="7" fill="#34d399" filter="url(#glow)"/><text x="120" y="1042" class="b">Verified closure requires fresh evidence. The model proposes; deterministic policy and workflow state decide.</text>
+</svg>

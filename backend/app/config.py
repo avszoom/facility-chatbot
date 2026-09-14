@@ -20,8 +20,11 @@ class Settings:
     openai_store: bool = False
     openai_reasoning_effort: str = "low"
     openai_max_output_tokens: int = 4096
-    bedrock_model_id: str = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+    bedrock_model_id: str = "us.amazon.nova-pro-v1:0"
     aws_region: str = "us-east-1"
+    bedrock_max_tokens: int = 4096
+    agentcore_runtime_arn: str | None = None
+    agentcore_qualifier: str = "DEFAULT"
     worker_poll_seconds: float = 0.25
     agent_worker_count: int = 3
     message_max_attempts: int = 3
@@ -50,9 +53,12 @@ class Settings:
                 300, int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "4096"))
             ),
             bedrock_model_id=os.getenv(
-                "BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0"
+                "BEDROCK_MODEL_ID", "us.amazon.nova-pro-v1:0"
             ),
             aws_region=os.getenv("AWS_REGION", "us-east-1"),
+            bedrock_max_tokens=max(512, min(8192, int(os.getenv("BEDROCK_MAX_TOKENS", "4096")))),
+            agentcore_runtime_arn=os.getenv("AGENTCORE_RUNTIME_ARN") or None,
+            agentcore_qualifier=os.getenv("AGENTCORE_QUALIFIER", "DEFAULT"),
             worker_poll_seconds=max(0.05, float(os.getenv("WORKER_POLL_SECONDS", "0.25"))),
             agent_worker_count=max(1, int(os.getenv("AGENT_WORKER_COUNT", "3"))),
             message_max_attempts=max(1, int(os.getenv("MESSAGE_MAX_ATTEMPTS", "3"))),

@@ -56,10 +56,12 @@ class ApplicationSystem:
 
 def build_system(settings: Settings | None = None) -> ApplicationSystem:
     settings = settings or Settings.from_env()
-    if settings.app_env != "local":
+    if settings.app_env not in {"local", "aws_ec2"}:
         raise ValueError(
-            "Only APP_ENV=local is implemented in this build. AWS adapters plug in at this composition root."
+            "Use APP_ENV=local or aws_ec2. Stage 1 retains the SQLite adapters on one persistent host."
         )
+    if settings.app_env == "aws_ec2" and settings.agent_runtime not in {"bedrock", "strands", "agentcore"}:
+        raise ValueError("AWS deployment requires Bedrock directly or through AgentCore; OpenAI/deterministic execution is disabled.")
 
     repository = SQLiteOperationsRepository(settings.database_path)
     repository.initialize()

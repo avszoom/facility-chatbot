@@ -835,7 +835,7 @@ class WorkflowService:
         evidence_summary = (
             f"{telemetry.get('id', telemetry.get('asset_id'))} at {telemetry.get('area', ticket.location_id)} is {telemetry.get('value', 'in alarm')} and reporting {str(telemetry.get('state', 'unknown')).lower()}. Working diagnosis: {decision.diagnosis}"
             if corroborated
-            else f"No building-level alarm corroborated the localized report; checked {observations or f'{telemetry.get("id")} {telemetry.get("value")}'}. A fault at an appliance, outlet, or room-level source can sit outside central sensor coverage. Working diagnosis: {decision.diagnosis}"
+            else f"No building-level alarm corroborated the localized report; checked {observations or str(telemetry.get('id')) + ' ' + str(telemetry.get('value'))}. A fault at an appliance, outlet, or room-level source can sit outside central sensor coverage. Working diagnosis: {decision.diagnosis}"
         )
         self._event(
             ticket,

@@ -1,0 +1,9 @@
+# Versions exercised in the stage-1 release. OpenAI is installed only because
+# the portable application supports it locally; the cloud config rejects it.
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.5
+python-dotenv==1.2.3
+strands-agents==1.54.0
+boto3==1.43.87
+openai==2.54.0

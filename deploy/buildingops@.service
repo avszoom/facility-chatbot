@@ -1,0 +1,25 @@
+[Unit]
+Description=BuildingOps %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=buildingops
+Group=buildingops
+WorkingDirectory=/opt/buildingops/current
+EnvironmentFile=/etc/buildingops/application.env
+ExecStart=/opt/buildingops/venv/bin/python -m %i
+Restart=always
+RestartSec=5
+TimeoutStopSec=150
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/buildingops
+
+[Install]
+WantedBy=multi-user.target

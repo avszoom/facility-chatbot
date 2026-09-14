@@ -1,0 +1,49 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ManageBuildingOpsRuntime",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock-agentcore:CreateAgentRuntime", "bedrock-agentcore:UpdateAgentRuntime",
+        "bedrock-agentcore:GetAgentRuntime", "bedrock-agentcore:ListAgentRuntimes",
+        "bedrock-agentcore:CreateAgentRuntimeEndpoint", "bedrock-agentcore:UpdateAgentRuntimeEndpoint",
+        "bedrock-agentcore:GetAgentRuntimeEndpoint", "bedrock-agentcore:ListAgentRuntimeEndpoints",
+        "bedrock-agentcore:InvokeAgentRuntime", "bedrock-agentcore:CreateWorkloadIdentity"
+      ],
+      "Resource": "arn:aws:bedrock-agentcore:us-east-2:ACCOUNT_ID:runtime/*"
+    },
+    {
+      "Sid": "CreateAgentCoreRuntimeIdentityServiceLinkedRole",
+      "Effect": "Allow",
+      "Action": "iam:CreateServiceLinkedRole",
+      "Resource": "arn:aws:iam::*:role/aws-service-role/runtime-identity.bedrock-agentcore.amazonaws.com/AWSServiceRoleForBedrockAgentCoreRuntimeIdentity",
+      "Condition": {
+        "StringEquals": {
+          "iam:AWSServiceName": "runtime-identity.bedrock-agentcore.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "ManageDeploymentBucket",
+      "Effect": "Allow",
+      "Action": ["s3:CreateBucket", "s3:GetBucketLocation", "s3:ListBucket", "s3:PutObject", "s3:GetObject"],
+      "Resource": ["arn:aws:s3:::buildingops-agentcore-ACCOUNT_ID-us-east-2", "arn:aws:s3:::buildingops-agentcore-ACCOUNT_ID-us-east-2/*"]
+    },
+    {
+      "Sid": "ManageRuntimeRole",
+      "Effect": "Allow",
+      "Action": ["iam:CreateRole", "iam:GetRole", "iam:PutRolePolicy", "iam:GetRolePolicy", "iam:PassRole"],
+      "Resource": [
+        "arn:aws:iam::ACCOUNT_ID:role/BuildingOpsAgentCoreRuntime",
+        "arn:aws:iam::ACCOUNT_ID:role/BuildingOpsEc2Runtime"
+      ]
+    },
+    {
+      "Sid": "ReadRuntimeLogs",
+      "Effect": "Allow",
+      "Action": ["logs:DescribeLogGroups", "logs:DescribeLogStreams", "logs:GetLogEvents", "logs:FilterLogEvents"],
+      "Resource": "arn:aws:logs:us-east-2:ACCOUNT_ID:log-group:/aws/bedrock-agentcore/*"
+    }
+  ]
+}

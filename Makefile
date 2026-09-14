@@ -1,4 +1,4 @@
-.PHONY: setup seed run run-operations run-world run-api run-worker run-simulator run-ui test test-agent verify-strands verify-openai demo-check demo-rehearsal verify frontend-build secret-scan clean-data
+.PHONY: setup seed run run-operations run-world run-api run-worker run-simulator run-ui test test-agent verify-strands verify-openai demo-check demo-rehearsal verify frontend-build secret-scan clean-data deploy-agentcore verify-agentcore
 
 PYTHON ?= .venv/bin/python
 PIP ?= .venv/bin/pip
@@ -61,3 +61,9 @@ verify: test frontend-build demo-check secret-scan
 
 clean-data:
 	rm -f data/buildingops.db data/buildingops.db-shm data/buildingops.db-wal
+
+deploy-agentcore:
+	$(PYTHON) scripts/deploy_agentcore.py --profile $${AWS_PROFILE:-buildingops} --instance "$${INSTANCE_ID:?Set INSTANCE_ID}"
+
+verify-agentcore:
+	$(PYTHON) scripts/verify_agentcore.py --profile $${AWS_PROFILE:-buildingops}

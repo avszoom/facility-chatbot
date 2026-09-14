@@ -128,6 +128,16 @@ make verify-strands
 make verify-openai
 ```
 
+## AWS deployment
+
+The deployed architecture uses an authenticated HTTPS gateway and separate
+operations/building-world services on Amazon EC2. Bounded Strands coordinator and
+specialist calls run in Amazon Bedrock AgentCore Runtime using Amazon Nova Pro;
+the authoritative ticket loop, policy enforcement, retries, and idempotency stay
+durable on encrypted EBS. See the [architecture diagram](docs/architecture.png)
+and [deployment instructions](docs/deployment/stage-1.md). Credentials, runtime
+data, recordings, and account-specific configuration are excluded from Git.
+
 See [the AWS replacement map](docs/aws-migration.md), [reuse disclosure](REUSE_DISCLOSURE.md), and [implementation checklist](docs/hackathon-build/checklist.md).
 
 Licensed under MIT.

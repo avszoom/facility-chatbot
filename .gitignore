@@ -1,5 +1,15 @@
 .DS_Store
 .env
+.env.*
+!.env.example
+.deployment/
+artifacts/
+docs/deployment/buildingops-deployer-policy.json
+*.pem
+*.key
+*.db
+*.db-wal
+*.db-shm
 .venv/
 *.egg-info/
 __pycache__/

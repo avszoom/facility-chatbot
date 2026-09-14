@@ -344,7 +344,19 @@ class StrandsAgentRuntime:
         self.model_id = settings.bedrock_model_id
 
     def _model(self):
-        return self.settings.bedrock_model_id
+        from botocore.config import Config
+        from strands.models import BedrockModel
+
+        return BedrockModel(
+            model_id=self.settings.bedrock_model_id,
+            region_name=self.settings.aws_region,
+            max_tokens=self.settings.bedrock_max_tokens,
+            boto_client_config=Config(
+                connect_timeout=10,
+                read_timeout=120,
+                retries={"mode": "standard", "total_max_attempts": 2},
+            ),
+        )
 
     def _run_specialist(self, role, ticket, context, Agent, tool) -> SpecialistReport:
         tool_trace: list[str] = []
@@ -414,6 +426,10 @@ class StrandsAgentRuntime:
         try:
             return self._run_specialist(role, ticket, context, Agent, tool)
         except Exception as exc:
+            if self.settings.app_env == "aws_ec2":
+                # Retry/escalate through the durable workflow, never present a
+                # rules-based fallback as successful Bedrock execution.
+                raise RuntimeError(f"Bedrock specialist failed: {type(exc).__name__}") from exc
             fallback = deterministic_report(role, ticket, context)
             return fallback.model_copy(
                 update={
@@ -439,9 +455,9 @@ class StrandsAgentRuntime:
         required = (
             ["Verification Agent"] if phase == "verification"
             else [] if phase == "knowledge_delivery"
-            else list(SPECIALIST_ROLES[:-1])
+            else roles_for(ticket, context)
         )
-        pending = list(required) if phase == "investigation" else [role for role in required if role not in completed]
+        pending = [role for role in required if role not in completed]
         coordinator = Agent(
             model=self._model(),
             system_prompt=COORDINATOR_PROMPT,
@@ -602,6 +618,10 @@ class OpenAIStrandsRuntime(StrandsAgentRuntime):
 
 
 def runtime_from_settings(settings: Settings):
+    if settings.agent_runtime == "agentcore":
+        from backend.app.agents.agentcore import AgentCoreRuntime
+
+        return AgentCoreRuntime(settings)
     if settings.agent_runtime == "openai":
         return OpenAIStrandsRuntime(settings)
     if settings.agent_runtime in {"strands", "bedrock"}:
