@@ -6,6 +6,12 @@ import type { Metrics, Ticket } from "./types";
 const metrics: Metrics = { received: 1, active: 0, resolved: 1, autonomous_resolutions: 0, needs_approval: 0, escalated: 0, human_touches_saved: 0, verified_closures: 0 };
 
 describe("Request ownership summary", () => {
+  it("shows changing action counts rather than a static automation percentage", () => {
+    const html=renderToStaticMarkup(<RequestSummary metrics={metrics} tickets={[]} contributions={{agent_actions:12,human_actions:0,technician_completions:0,agent_percent:100,human_percent:0}} />);
+    expect(html).toContain("Agent actions completed</small><strong");
+    expect(html).toContain('metric-updated">12</strong>');
+    expect(html).toContain("100% of recorded work · not completion %");
+  });
   it("accounts for a staff-resolved request even when automatic resolutions are zero", () => {
     const html = renderToStaticMarkup(<RequestSummary metrics={metrics} tickets={[]} />);
     expect(html).toContain("1 received · 1 resolved (0 automatically, 1 with staff) · 0 still open");
@@ -13,7 +19,7 @@ describe("Request ownership summary", () => {
 
   it("does not count technician waiting time as active agent work", () => {
     const html = renderToStaticMarkup(<RequestSummary metrics={{ ...metrics, active: 1, resolved: 0 }} tickets={[{ status: "waiting_technician" } as Ticket]} />);
-    expect(html).toContain("<small>Agent working</small><strong>0</strong>");
-    expect(html).toContain("<small>Waiting for technician</small><strong>1</strong>");
+    expect(html).toContain('<small>Agent working</small><strong class="metric-updated">0</strong>');
+    expect(html).toContain('<small>Waiting for technician</small><strong class="metric-updated">1</strong>');
   });
 });

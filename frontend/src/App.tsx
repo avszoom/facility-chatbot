@@ -1,7 +1,8 @@
 import { MissionControl } from "./MissionControl";
+import { singleFlightRefresh } from "./live-refresh";
 import { RequestSummary } from "./RequestSummary";
 import { TicketAutomation } from "./TicketAutomation";
-import { FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { api, apiBase } from "./api";
 import { floors, sensors, totalCapacity, totalOccupancy } from "./facility";
 import { humanize, ticketStatusLabel } from "./format";
@@ -195,7 +196,7 @@ function PeopleView({ tickets }: { tickets: Ticket[] }) {
 
 export default function App() {
   const [view, setView] = useState<View>("overview"); const [tickets, setTickets] = useState<Ticket[]>([]); const [metrics, setMetrics] = useState(emptyMetrics); const [live, setLive] = useState<LiveOperations>(emptyLive); const [selectedId, setSelectedId] = useState(""); const [detail, setDetail] = useState<TicketDetail | null>(null); const [connection, setConnection] = useState<"live" | "reconnecting">("reconnecting"); const [error, setError] = useState(""); const [creating, setCreating] = useState(false); const [busy, setBusy] = useState(false);
-  const refresh = useCallback(async () => { try { const [nextTickets, nextMetrics, nextLive] = await Promise.all([api.tickets(), api.metrics(), api.live()]); setTickets(nextTickets); setMetrics(nextMetrics); setLive(nextLive); setError(""); setSelectedId((current) => current || nextTickets[0]?.ticket_id || ""); } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to reach the operations service"); } }, []);
+  const refresh = useMemo(() => singleFlightRefresh(async () => { try { const [nextTickets, nextMetrics, nextLive] = await Promise.all([api.tickets(), api.metrics(), api.live()]); setTickets(nextTickets); setMetrics(nextMetrics); setLive(nextLive); setError(""); setSelectedId((current) => current || nextTickets[0]?.ticket_id || ""); } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to reach the operations service"); } }), []);
   useEffect(() => { void refresh(); const polling = window.setInterval(() => void refresh(), 600); return () => window.clearInterval(polling); }, [refresh]);
   useEffect(() => { if (selectedId) void api.ticket(selectedId).then(setDetail).catch(() => setDetail(null)); }, [selectedId, tickets]);
   useEffect(() => { const stream = new EventSource(`${apiBase}/api/events`); stream.onopen = () => setConnection("live"); stream.onerror = () => setConnection("reconnecting"); stream.onmessage = () => void refresh(); return () => stream.close(); }, [refresh]);
@@ -214,7 +215,7 @@ export default function App() {
     {view === "overview" && <OverviewView tickets={tickets} metrics={metrics} live={live} onReview={reviewTicket} />}
     {view === "requests" && <InboxView tickets={tickets} metrics={metrics} live={live} selectedId={selectedId} detail={detail} busy={busy} onSelect={setSelectedId} onCreate={() => setCreating(true)} onLoad={loadSamples} onProcess={() => operate(() => api.processScheduled())} onApprove={(approved) => detail && operate(() => api.approve(detail.ticket.ticket_id, approved))} onRespond={(response) => detail && operate(() => api.respond(detail.ticket.ticket_id, response))} />}
     {view === "agent" && <AgentLiveView live={live} tickets={tickets} onReview={reviewTicket} />}
-    {view === "generator" && <GeneratorView live={live} busy={busy} onPublishRequest={publishRequest} onGenerate={(count, scenarioType) => operate(() => api.generateRequests({ count, scenario_type: scenarioType }))} onConfigure={(running, intervalSeconds) => operate(() => api.configureSimulation({ running, interval_seconds: intervalSeconds }))} onOpenActivity={() => setView("agent")} onOpenBuilding={() => setView("building")} />}
+    {view === "generator" && <GeneratorView live={live} busy={busy} onPublishRequest={publishRequest} onGenerate={(count, scenarioType) => operate(async () => { await api.generateRequests({ count, scenario_type: scenarioType }); setView("agent"); })} onConfigure={(running, intervalSeconds) => operate(() => api.configureSimulation({ running, interval_seconds: intervalSeconds }))} onOpenActivity={() => setView("agent")} onOpenBuilding={() => setView("building")} />}
     {view === "tickets" && <TicketsView tickets={tickets} onReview={reviewTicket} />}
     {view === "building" && <BuildingView tickets={tickets} live={live} />}
     {view === "people" && <PeopleView tickets={tickets} />}

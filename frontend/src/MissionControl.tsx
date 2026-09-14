@@ -4,15 +4,18 @@ import { ticketContributions } from "./automation";
 import { humanize, ticketStatusLabel } from "./format";
 import type { LiveOperations, Ticket, TicketDetail } from "./types";
 import "./mission-control.css";
+import { sortByProgress, progressStage } from "./live-progress";
+import { LiveWork } from "./LiveWork";
+import { singleFlightRefresh } from "./live-refresh";
 
 const roles = ["Intake & Safety Agent", "Building Context Agent", "Resident Knowledge Agent", "Sensor Intelligence Agent", "Maintenance Intelligence Agent", "Verification Agent"];
 const names = ["Intake & safety", "Building context", "Resident knowledge", "Sensor intelligence", "Maintenance history", "Verification"];
 const time = (value: string) => new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 export function pipelineIndex(ticket: Ticket): number {
-  return ({ new: 0, triaging: 1, working: 2, needs_approval: 2, waiting_technician: 2, waiting_verification: 3, resolved: 4, escalated: 1 })[ticket.status];
+  return progressStage(ticket);
 }
 export function Pipeline({ ticket, running = false, eventTypes = [] }: { ticket: Ticket; running?: boolean; eventTypes?: string[] }) {
-  const index = pipelineIndex(ticket);
+  const index = progressStage(ticket, eventTypes);
   const blocked = ["needs_approval", "escalated"].includes(ticket.status);
   return <ol className="mc-pipeline" aria-label={`Request pipeline: ${ticketStatusLabel(ticket.status)}`}>
     {["Received", "Investigate", "Act", "Verify", "Resolved"].map((label, i) => {
@@ -78,15 +81,16 @@ export function MissionControl({ live, tickets, onReview }: { live: LiveOperatio
     if (!selected) return;
     let cancelled = false;
     setDetail(null); setError("");
-    const refresh = async () => { try { const result = await api.ticket(selected); if (!cancelled) { setDetail(result); setError(""); } } catch { if (!cancelled) setError("Unable to refresh this workflow. Showing the last available history."); } };
-    void refresh(); const timer = setInterval(refresh, 2500);
+    const refresh = singleFlightRefresh(async () => { try { const result = await api.ticket(selected); if (!cancelled) { setDetail(result); setError(""); } } catch { if (!cancelled) setError("Unable to refresh this workflow. Showing the last available history."); } });
+    void refresh(); const timer = setInterval(refresh, 1000);
     return () => { cancelled = true; clearInterval(timer); };
   }, [selected]);
   const running = new Set((live.agent.deliveries || []).filter(d => d.status === "processing").map(d => d.ticket_id));
   const groups = { all: tickets, open: tickets.filter(t => t.status !== "resolved"), attention: tickets.filter(t => ["escalated", "needs_approval"].includes(t.status)), resolved: tickets.filter(t => t.status === "resolved") };
-  const visible = groups[filter as keyof typeof groups].filter(t => `${t.subject} ${t.ticket_id} ${t.location_id}`.toLowerCase().includes(query.toLowerCase()));
+  const visible = sortByProgress(groups[filter as keyof typeof groups].filter(t => `${t.subject} ${t.ticket_id} ${t.location_id}`.toLowerCase().includes(query.toLowerCase())), live);
   return <section className="mc-workspace"><header className="mc-heading"><div><span className="mc-eyebrow">RESIDENT SERVICES / LIVE OPERATIONS</span><h2>From request to resolution.</h2><p>Follow the work. Open any request to see the agents, evidence and human checkpoints.</p></div><div className="mc-live-badge"><i />{live.agent.deliveries ? running.size : "—"} executing <span>/ {live.agent.worker_count} workers</span></div></header>
-    <div className="mc-journeys"><article><span>01 / KNOWLEDGE</span><b>Answer with confidence</b><p>Handbook → cited resident reply</p></article><article><span>02 / COMFORT</span><b>Correct & verify</b><p>Telemetry → permitted adjustment → recovery</p></article><article><span>03 / SAFETY</span><b>Investigate & coordinate</b><p>Evidence → approval → technician → verification</p></article></div>
+    <LiveWork live={live} tickets={tickets} onSelect={setSelected} />
+    <p className="mc-sort-note">Most progressed first · ties use specialist reports, completed actions, then latest update. Select any request for its agent graph.</p>
     <div className="mc-toolbar"><nav aria-label="Workflow filters">{Object.entries(groups).map(([key, rows]) => <button key={key} onClick={() => setFilter(key)} className={filter === key ? "selected" : ""}>{({all:"All requests",open:"In progress",attention:"Needs attention",resolved:"Resolved"})[key]} <b>{rows.length}</b></button>)}</nav><input aria-label="Search workflows" placeholder="Search request or location…" value={query} onChange={e => setQuery(e.target.value)} /></div>
     <div className="mc-worklist"><div className="mc-column-labels"><span>RESIDENT REQUEST</span><span>RESOLUTION PIPELINE</span><span>OWNERSHIP</span></div>{visible.map(t => {
       const p = live.agent.ticket_progress?.[t.ticket_id];
