@@ -139,6 +139,39 @@ def test_typed_investigation_decision_is_routed_through_execution():
     assert guarded.model_provider == "workflow-guardrail"
 
 
+def test_exhausted_redelegation_uses_completed_sensor_evidence():
+    from backend.app.agents.runtime import enforce_supported_resolution
+    from backend.app.domain.models import CoordinatorDirective, SpecialistReport
+
+    request = ticket("Apartment warm", "The living room in my apartment is hot")
+    report = SpecialistReport(
+        role="Sensor Intelligence Agent",
+        objective="Read the relevant temperature sensor.",
+        summary="TMP-04-01 reports a high temperature.",
+        findings=["Temperature is above the comfort band."],
+        evidence_sensor_ids=["TMP-04-01"],
+        confidence=0.98,
+        tool_calls=["sensor-intelligence-agent.read_specialist_context"],
+    )
+    proposal = CoordinatorDirective(
+        iteration=6,
+        action="delegate",
+        specialist_role="Sensor Intelligence Agent",
+        objective="Read it again.",
+        rationale="More evidence may help.",
+        state_summary="Investigating.",
+    )
+
+    guarded = enforce_supported_resolution(
+        proposal, "investigation", request, {"building_facts": {}}, [report]
+    )
+
+    assert guarded.action == "execute"
+    assert guarded.specialist_role is None
+    assert guarded.decision.selected_action == "inspect_temperature"
+    assert guarded.decision.evidence_sensor_ids == ["TMP-04-01"]
+
+
 def test_coordinator_requires_an_independent_verification_report():
     runtime = DeterministicAgentRuntime()
     request = ticket("Apartment warm", "The living room in my apartment is hot")
@@ -198,10 +231,15 @@ def test_missing_evidence_repairs_routing_without_fabricating_a_decision():
     assert enforce_evidence_handoff(proposal, []) is proposal
 
 
-def test_evidence_guard_preserves_safe_escalation_and_valid_model_choice():
+def test_evidence_guard_collects_required_evidence_before_escalation():
     from backend.app.agents.runtime import enforce_evidence_handoff
     from backend.app.domain.models import CoordinatorDirective
-    for action, role in [("escalate", None), ("delegate", "Building Context Agent")]:
-        proposal = CoordinatorDirective(iteration=2, action=action, specialist_role=role,
-                                        objective="Check", rationale="Next step", state_summary="Pending")
-        assert enforce_evidence_handoff(proposal, ["Building Context Agent"]) is proposal
+    escalation = CoordinatorDirective(iteration=2, action="escalate",
+                                      objective="Escalate", rationale="Uncertain", state_summary="Pending")
+    repaired = enforce_evidence_handoff(escalation, ["Building Context Agent"])
+    assert repaired.action == "delegate"
+    assert repaired.specialist_role == "Building Context Agent"
+
+    valid = CoordinatorDirective(iteration=2, action="delegate", specialist_role="Building Context Agent",
+                                 objective="Check", rationale="Next step", state_summary="Pending")
+    assert enforce_evidence_handoff(valid, ["Building Context Agent"]) is valid

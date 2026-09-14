@@ -93,7 +93,7 @@ def _sensor_for_text(building_facts: dict[str, Any], text: str) -> dict[str, Any
 def enforce_evidence_handoff(
     directive: CoordinatorDirective, pending: list[str]
 ) -> CoordinatorDirective:
-    if not pending or directive.action == "escalate":
+    if not pending:
         return directive
     if directive.action == "delegate" and directive.specialist_role in pending:
         return directive
@@ -105,6 +105,51 @@ def enforce_evidence_handoff(
         "objective": f"Collect the required evidence from {role}.",
         "rationale": f"Workflow guardrail redirected the model's {directive.action} proposal: required evidence from {role} is not yet recorded.",
         "state_summary": "Execution is blocked until required specialist evidence is collected.",
+        "model_provider": "workflow-guardrail",
+        "model_id": None,
+    })
+
+
+def enforce_supported_resolution(
+    directive: CoordinatorDirective,
+    phase: str,
+    ticket: Ticket,
+    context: dict[str, Any],
+    reports: list[SpecialistReport],
+) -> CoordinatorDirective:
+    """Turn an unsupported premature escalation into a typed, policy-checked action."""
+    if (
+        phase != "investigation"
+        or directive.action not in {"delegate", "complete", "verify", "escalate"}
+        or not reports
+    ):
+        return directive
+    decision = DeterministicAgentRuntime().decide(ticket, context)
+    if decision.selected_action == "escalate":
+        return directive
+    evidence_ids = list(dict.fromkeys(
+        sensor_id for report in reports for sensor_id in report.evidence_sensor_ids
+    ))
+    if decision.selected_action in {"inspect_temperature", "investigate_incident"} and not evidence_ids:
+        return directive
+    decision = decision.model_copy(update={
+        "evidence_sensor_ids": evidence_ids,
+        "tool_calls": [call for report in reports for call in report.tool_calls]
+        + ["operations-coordinator.policy-guardrail"],
+        "specialist_reports": reports,
+        "model_provider": "workflow-guardrail",
+        "model_id": None,
+    })
+    return directive.model_copy(update={
+        "action": "execute",
+        "decision": decision,
+        "specialist_role": None,
+        "objective": decision.objective,
+        "rationale": (
+            "All required specialist evidence is recorded. The workflow guardrail routed the "
+            "supported request through its typed, policy-controlled action instead of premature staff escalation."
+        ),
+        "state_summary": f"Evidence is complete; {decision.selected_action} is ready for policy evaluation.",
         "model_provider": "workflow-guardrail",
         "model_id": None,
     })
@@ -530,6 +575,11 @@ class StrandsAgentRuntime:
             }
         )
         directive = enforce_phase_action(directive, phase)
+        directive = enforce_evidence_handoff(directive, pending)
+        if not pending:
+            directive = enforce_supported_resolution(
+                directive, phase, ticket, context, reports
+            )
         # Completion proposals after a repair always go through the domain verifier.
         # Never repeat the repair merely because the model calls completion "execute".
         if phase == "verification" and "Verification Agent" in completed and directive.action in {"execute", "complete"}:
