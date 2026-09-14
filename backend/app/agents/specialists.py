@@ -25,12 +25,22 @@ def roles_for(ticket: Ticket, context: dict[str, Any]) -> list[str]:
             "fume", "flicker", "electric", "spark", "stuffy", "air quality",
         )
     )
-    roles = ["Intake & Safety Agent", "Building Context Agent"]
     if operational:
-        roles.extend(["Sensor Intelligence Agent", "Maintenance Intelligence Agent"])
-    if context.get("knowledge_result") and not operational:
-        roles.append("Resident Knowledge Agent")
-    return roles
+        return [
+            "Intake & Safety Agent",
+            "Building Context Agent",
+            "Sensor Intelligence Agent",
+            "Maintenance Intelligence Agent",
+        ]
+    knowledge_question = ticket.kind == "enquiry" or "?" in text or text.startswith(
+        ("can i", "do i", "how ", "is ", "where ", "when ", "what ")
+    )
+    if knowledge_question or context.get("knowledge_result"):
+        # Eligibility follows resident intent, not whether the coordinator was
+        # allowed to see the document lookup result. The Knowledge Agent owns
+        # the bounded search and reports whether an authoritative answer exists.
+        return ["Resident Knowledge Agent"]
+    return ["Intake & Safety Agent", "Building Context Agent"]
 
 
 def scoped_context(role: str, ticket: Ticket, context: dict[str, Any]) -> dict[str, Any]:

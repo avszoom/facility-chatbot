@@ -87,7 +87,7 @@ def test_multiple_tickets_advance_as_independent_coordinator_loops(system):
 
     assert system.workflow.process_due(now=future(), limit=10) == 3
     details = [system.tickets.detail(ticket.ticket_id) for ticket in tickets]
-    assert all(detail.workflow.current_step == "specialist:Intake & Safety Agent" for detail in details)
+    assert all(detail.workflow.current_step == "specialist:Resident Knowledge Agent" for detail in details)
     assert {detail.workflow.workflow_id for detail in details} == {
         f"WF-{ticket.ticket_id}" for ticket in tickets
     }
@@ -181,7 +181,7 @@ def test_coordinator_loop_resumes_after_restart_between_handoffs(system):
     system.workflow.process_due(now=future(), limit=1)
     before = system.tickets.detail(ticket.ticket_id)
     assert before.workflow.current_step == "coordinator:review"
-    assert before.workflow.checkpoint["completed_specialists"] == ["Intake & Safety Agent"]
+    assert before.workflow.checkpoint["completed_specialists"] == ["Resident Knowledge Agent"]
 
     restarted = build_system(
         Settings(
@@ -196,5 +196,5 @@ def test_coordinator_loop_resumes_after_restart_between_handoffs(system):
     assert detail.ticket.status == TicketStatus.RESOLVED
     assert len([
         event for event in detail.events
-        if event.event_type == "specialist.completed" and event.actor == "Intake & Safety Agent"
+        if event.event_type == "specialist.completed" and event.actor == "Resident Knowledge Agent"
     ]) == 1

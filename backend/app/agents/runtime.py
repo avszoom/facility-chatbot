@@ -110,6 +110,28 @@ def enforce_evidence_handoff(
     })
 
 
+def enforce_phase_action(
+    directive: CoordinatorDirective, phase: str
+) -> CoordinatorDirective:
+    """Normalize a typed investigation decision without inventing model output."""
+    if (
+        phase == "investigation"
+        and directive.action in {"complete", "verify"}
+        and directive.decision is not None
+    ):
+        return directive.model_copy(update={
+            "action": "execute",
+            "rationale": (
+                "Workflow guardrail accepted the coordinator's typed decision and routed it "
+                "through policy-controlled execution before completion."
+            ),
+            "state_summary": "A typed decision is ready for policy-controlled execution.",
+            "model_provider": "workflow-guardrail",
+            "model_id": None,
+        })
+    return directive
+
+
 class DeterministicAgentRuntime:
     """Offline/test runtime behind the same contract used by Strands and AgentCore."""
 
@@ -507,6 +529,7 @@ class StrandsAgentRuntime:
                 "model_id": self.model_id,
             }
         )
+        directive = enforce_phase_action(directive, phase)
         # Completion proposals after a repair always go through the domain verifier.
         # Never repeat the repair merely because the model calls completion "execute".
         if phase == "verification" and "Verification Agent" in completed and directive.action in {"execute", "complete"}:
@@ -520,9 +543,22 @@ class StrandsAgentRuntime:
                 return directive.model_copy(update={"action": "escalate", "specialist_role": None, "decision": None,
                     "rationale": "The investigation exhausted ten steps without a verified plan. Facilities staff must review the collected evidence and choose the next diagnostic step."})
             if directive.specialist_role not in pending:
-                raise RuntimeError(
-                    f"The coordinator delegated an ineligible or completed role: {directive.specialist_role}"
-                )
+                if pending:
+                    selected = pending[0]
+                    directive = directive.model_copy(update={
+                        "specialist_role": selected,
+                        "rationale": (
+                            f"Workflow guardrail redirected an unavailable specialist to {selected}, "
+                            "the next eligible evidence source."
+                        ),
+                        "state_summary": f"Delegating the next eligible evidence task to {selected}.",
+                        "model_provider": "workflow-guardrail",
+                        "model_id": None,
+                    })
+                else:
+                    raise RuntimeError(
+                        f"The coordinator delegated an ineligible or completed role: {directive.specialist_role}"
+                    )
             return directive.model_copy(update={"decision": None})
         if directive.action == "execute" and not reports:
             raise RuntimeError("Execution requires evidence from at least one specialist")

@@ -92,7 +92,51 @@ def test_coordinator_delegates_one_unfinished_specialist_per_iteration():
     second = runtime.coordinate(request, context, [first_report], 2)
     assert second.action == "delegate"
     assert second.specialist_role == "Building Context Agent"
-    assert second.specialist_role != first.specialist_role
+
+
+def test_enquiry_agent_eligibility_does_not_depend_on_prefetched_search_results():
+    from backend.app.agents.specialists import roles_for
+    from backend.app.domain.models import TicketCreate
+
+    ticket = TicketCreate(
+        subject="Where can I park my car?",
+        description="Please tell me where resident parking is located.",
+        requester="Resident",
+        location_id="BLDG-A-LOBBY",
+        kind="enquiry",
+    )
+    # The durable Ticket has additional generated fields; the router only needs
+    # the common request attributes and deliberately receives no search result.
+    assert roles_for(ticket, {"knowledge_result": None}) == ["Resident Knowledge Agent"]
+
+
+def test_typed_investigation_decision_is_routed_through_execution():
+    from backend.app.agents.runtime import enforce_phase_action
+    from backend.app.domain.models import AgentDecision, CoordinatorDirective
+
+    decision = AgentDecision(
+        kind="enquiry",
+        priority="low",
+        objective="Answer the resident question.",
+        selected_action="answer_enquiry",
+        confidence=0.95,
+        rationale="An authoritative answer is available.",
+        user_update="I found the parking guidance.",
+    )
+    proposal = CoordinatorDirective(
+        iteration=2,
+        action="complete",
+        objective="Answer the request.",
+        rationale="The knowledge report answers the request.",
+        state_summary="Ready to answer.",
+        decision=decision,
+    )
+
+    guarded = enforce_phase_action(proposal, "investigation")
+
+    assert guarded.action == "execute"
+    assert guarded.decision == decision
+    assert guarded.model_provider == "workflow-guardrail"
 
 
 def test_coordinator_requires_an_independent_verification_report():
