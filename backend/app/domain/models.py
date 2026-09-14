@@ -196,6 +196,7 @@ class AgentDecision(Model):
 
 
 class CoordinatorDirective(Model):
+    intent: Literal["enquiry", "service_request", "incident", "unknown"] = "unknown"
     iteration: int = Field(ge=1, le=12)
     action: Literal["delegate", "execute", "verify", "complete", "escalate"]
     objective: str

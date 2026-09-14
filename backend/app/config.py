@@ -19,7 +19,7 @@ class Settings:
     openai_model_id: str = "gpt-5.2"
     openai_store: bool = False
     openai_reasoning_effort: str = "low"
-    openai_max_output_tokens: int = 1200
+    openai_max_output_tokens: int = 4096
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-20250514-v1:0"
     aws_region: str = "us-east-1"
     worker_poll_seconds: float = 0.25
@@ -47,7 +47,7 @@ class Settings:
             in {"1", "true", "yes", "on"},
             openai_reasoning_effort=os.getenv("OPENAI_REASONING_EFFORT", "low"),
             openai_max_output_tokens=max(
-                300, int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "1200"))
+                300, int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "4096"))
             ),
             bedrock_model_id=os.getenv(
                 "BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0"

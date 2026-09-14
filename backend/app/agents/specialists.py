@@ -18,8 +18,7 @@ COORDINATOR_ROLE = "Operations Coordinator"
 
 def roles_for(ticket: Ticket, context: dict[str, Any]) -> list[str]:
     text = f"{ticket.subject} {ticket.description}".lower()
-    sensors = context.get("building_facts", {}).get("nearby_sensors", [])
-    operational = any(sensor.get("state") in {"Warning", "Critical"} for sensor in sensors) or any(
+    operational = any(
         term in text
         for term in (
             "hot", "warm", "cold", "temperature", "smell", "odor", "smoke",

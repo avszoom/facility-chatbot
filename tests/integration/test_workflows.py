@@ -145,6 +145,10 @@ def test_failed_service_verification_escalates(system):
     system.building.set_verification_failure("TKT-1002", True)
     run_seeded_investigation(system)
     assert run_until(system, "TKT-1002", TicketStatus.ESCALATED).ticket.status == TicketStatus.ESCALATED
+    detail = system.tickets.detail("TKT-1002")
+    assert detail.work_order and detail.work_order.trade == "hvac"
+    assert any(e.event_type == "maintenance.required" for e in detail.events)
+    assert detail.work_order.status == "completed"
 
 
 def test_incident_survives_composition_root_restart(system):

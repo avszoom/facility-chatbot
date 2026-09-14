@@ -108,6 +108,13 @@ class WorkflowService:
 
     def process_due(self, *, now: datetime | None = None, limit: int = 10) -> int:
         current = now or datetime.now(UTC)
+        # Wall-clock watchdog, independent of accelerated simulation processing.
+        for ticket in self.repository.list_tickets():
+            if ticket.status == TicketStatus.WAITING_TECHNICIAN:
+                order = self.repository.get_work_order_for_ticket(ticket.ticket_id)
+                if order and order.status != "completed" and datetime.now(UTC) > order.due_at + timedelta(minutes=5):
+                    self._transition(ticket, TicketStatus.ESCALATED)
+                    self._event(ticket, "ticket.escalated", f"{order.technician} has not completed {order.work_order_id} within five minutes of the expected time. Contact maintenance to confirm attendance and a new completion time.", key="MAINTENANCE-OVERDUE")
         self._publish_due_commands(current, limit)
         deliveries = self.message_bus.pull(
             "operations.workflow", now=current, limit=limit
@@ -212,6 +219,7 @@ class WorkflowService:
                 status="running",
                 checkpoint={
                     "ticket_status": str(ticket.status),
+                    "intent": str(ticket.kind),
                     "ticket_version": ticket.version,
                     "loop_iteration": iteration,
                     "phase": phase,
@@ -304,9 +312,9 @@ class WorkflowService:
             key="AGENT-START",
         )
 
-    def _context(self, ticket: Ticket, phase: str) -> dict[str, Any]:
-        knowledge_result = self.knowledge.search(f"{ticket.subject} {ticket.description}")
-        building_facts = self.building.investigation_context(ticket)
+    def _context(self, ticket: Ticket, phase: str, role: str | None = None) -> dict[str, Any]:
+        knowledge_result = self.knowledge.search(f"{ticket.subject} {ticket.description}") if role in {None, "Resident Knowledge Agent"} or phase == "knowledge_delivery" else None
+        building_facts = self.building.investigation_context(ticket) if role in {None, "Building Context Agent", "Sensor Intelligence Agent", "Maintenance Intelligence Agent", "Verification Agent"} else {}
         context: dict[str, Any] = {
             "phase": phase,
             "eligible_actions": ["answer_enquiry", "inspect_temperature", "investigate_incident", "escalate"],
@@ -316,7 +324,10 @@ class WorkflowService:
         }
         if phase == "verification":
             context["expected_outcome"] = "Fresh evidence must confirm the requested outcome before closure."
-            context["verification_result"] = self.building.verify(ticket)
+            order = self.repository.get_work_order_for_ticket(ticket.ticket_id)
+            context["work_order"] = order.model_dump(mode="json") if order else None
+            if role != "coordinator":
+                context["verification_result"] = self.building.verify(ticket)
         if phase == "knowledge_delivery":
             context["phase_outcome"] = {
                 "authoritative_source": knowledge_result.get("source") if knowledge_result else None,
@@ -353,15 +364,24 @@ class WorkflowService:
         phase = str(job.payload.get("phase", "investigation"))
         iteration = int(job.payload.get("iteration", 1))
         reports = self._reports(job)
-        context = self._context(ticket, phase)
-        if phase == "investigation":
+        context = self._context(ticket, phase, "coordinator" if self.agent.real_model else None)
+        if phase == "investigation" and context["building_facts"]:
             self._correlate_once(ticket, context["building_facts"])
         directive = self.agent.coordinate(ticket, context, reports, iteration)
+        if iteration == 1:
+            self._event(ticket, "coordinator.intent", directive.state_summary,
+                actor="Operations Coordinator", payload={"intent": directive.intent, "objective": directive.objective},
+                key="INTENT")
+        if directive.intent != "unknown" and ticket.kind != directive.intent:
+            ticket.kind = directive.intent
+            ticket.version += 1
+            self.repository.save_ticket(ticket)
         if directive.action == "delegate" and directive.specialist_role:
             self._delegate_specialist(ticket, reports, directive, phase)
             return
         if directive.action == "execute" and directive.decision:
-            self._accept_decision(ticket, directive.decision, context.get("knowledge_result"), iteration)
+            knowledge = self.knowledge.search(f"{ticket.subject} {ticket.description}") if directive.decision.selected_action == "answer_enquiry" else None
+            self._accept_decision(ticket, directive.decision, knowledge, iteration)
             return
         if directive.action == "verify" and phase == "verification":
             self._event(
@@ -460,10 +480,12 @@ class WorkflowService:
         iteration = int(job.payload.get("iteration", 1))
         role = str(job.payload["role"])
         reports = self._reports(job)
-        if role in {report.role for report in reports}:
+        if not self.agent.real_model and role in {report.role for report in reports}:
             raise RuntimeError(f"Coordinator attempted to repeat completed specialist {role}")
-        context = self._context(ticket, phase)
-        report = self.agent.run_specialist(role, ticket, context)
+        context = self._context(ticket, phase, role if self.agent.real_model else None)
+        context["objective"] = job.payload.get("objective", "Investigate the resident request")
+        context["previous_reports"] = [item.model_dump(mode="json") for item in reports]
+        report = self.agent.run_specialist(role, ticket, context).model_copy(update={"objective": context["objective"]})
         reports.append(report)
         findings = "; ".join(report.findings[:2]) if report.findings else report.summary
         self._event(
@@ -757,7 +779,7 @@ class WorkflowService:
                 cited_evidence.append(self.building.telemetry(sensor_id))
             except KeyError:
                 continue
-        text = f"{ticket.subject} {ticket.description}".lower()
+        text = f"{ticket.subject} {ticket.description} {decision.diagnosis}".lower()
         electrical_report = any(
             term in text
             for term in (
@@ -771,7 +793,8 @@ class WorkflowService:
                 "hot plastic",
             )
         )
-        preferred_types = (
+        hvac_report = not electrical_report and any(term in text for term in ("hvac", "thermostat", "too warm", "too cold", "fan-coil"))
+        preferred_types = {"Temperature"} if hvac_report else (
             {"Electrical load", "Cabinet temperature"}
             if electrical_report
             else {"VOC / odor", "CO₂", "Humidity"}
@@ -796,10 +819,10 @@ class WorkflowService:
             return
         telemetry = self.building.telemetry(asset["asset_id"])
         history = self.building.history(asset["asset_id"])
-        is_air_quality = not electrical_report
-        trade = "indoor_air_quality" if is_air_quality else "electrical"
+        is_air_quality = not electrical_report and not hvac_report
+        trade = "hvac" if hvac_report else "indoor_air_quality" if is_air_quality else "electrical"
         action_type = "dispatch_safety_technician" if is_air_quality else "dispatch_electrical_technician"
-        procedure = (
+        procedure = "Inspect the thermostat, fan-coil, valves and airflow. Repair the affected HVAC equipment and document stable room temperature." if hvac_report else (
             f"Inspect {ticket.location_id}, test air quality at the reported source, isolate the odor source, ventilate if safe, and document clearance readings."
             if is_air_quality
             else f"Inspect {ticket.location_id} for a localized overheated appliance, outlet, branch circuit, or connection; thermal-scan the area, perform only an SOP-approved like-for-like repair, and document the exact cause and clearance readings."
@@ -996,5 +1019,13 @@ class WorkflowService:
             self._event(ticket, "ticket.resolved", "Closed only after independent outcome verification.", payload={"verified": True}, key="RESOLVED")
         else:
             self._event(ticket, "verification.failed", result["summary"], payload=result, key="VERIFY-FAILED")
+            if not self.repository.get_work_order_for_ticket(ticket.ticket_id):
+                decision_event = next((e for e in reversed(self.repository.list_events(ticket.ticket_id)) if e.event_type == "agent.decision"), None)
+                if decision_event:
+                    decision = AgentDecision.model_validate({k: v for k, v in decision_event.payload.items() if k in AgentDecision.model_fields}).model_copy(update={"selected_action": "investigate_incident"})
+                    self._transition(ticket, TicketStatus.WORKING)
+                    self._event(ticket, "maintenance.required", "The adjustment did not resolve the issue. Preparing a maintenance work order; reception does not need to act yet.", key="MAINTENANCE-REQUIRED")
+                    self._investigate_incident(ticket, decision)
+                    return
             self._transition(ticket, TicketStatus.ESCALATED)
             self._send_update(ticket, "The issue did not remain stable after the attempted resolution, so I escalated it instead of closing it.", key="ESCALATED")

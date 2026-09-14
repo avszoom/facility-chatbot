@@ -279,10 +279,7 @@ class LocalBuildingProvider:
             for sensor in state["sensors"].values()
             if sensor.get("floor") == floor
         ]
-        primary = correlated["sensor"] if correlated else next(
-            (sensor for sensor in floor_sensors if sensor.get("state") != "Normal"),
-            None,
-        )
+        primary = correlated["sensor"] if correlated else None
         text = f"{ticket.subject} {ticket.description}".lower()
         if primary is None:
             symptom_types = (
