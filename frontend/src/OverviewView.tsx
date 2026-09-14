@@ -1,3 +1,4 @@
+import { RequestSummary } from "./RequestSummary";
 import type { LiveOperations, Metrics, Ticket } from "./types";
 import { humanize, ticketStatusLabel } from "./format";
 
@@ -34,20 +35,13 @@ export function OverviewView({ tickets, metrics, live, onReview }: Props) {
   const needsYou = tickets.filter((ticket) => ticket.status === "needs_approval" || ticket.status === "escalated");
   const waitingExternal = tickets.filter((ticket) => ticket.status === "waiting_technician");
   const agentWorking = tickets.filter((ticket) => ["new", "triaging", "working", "waiting_verification"].includes(ticket.status));
-  const autonomyRate = live.impact.autonomy_rate;
+  const autonomyRate = metrics.resolved ? Math.round(metrics.autonomous_resolutions / metrics.resolved * 100) : 0;
   const primaryDecision = needsYou[0];
-  const active = tickets.filter((ticket) => !["resolved", "escalated"].includes(ticket.status)).slice(0, 7);
+  const active = [...tickets].sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at)).slice(0, 10);
   const otherOpen = Math.max(0, metrics.active - needsYou.length);
 
   return <section className="overview-view">
-    <section className="overview-kpis">
-      <article><span className="overview-icon blue">▣</span><small>Requests received</small><strong>{metrics.received}</strong><em>Current workspace</em></article>
-      <article><span className="overview-icon green">✓</span><small>Handled automatically</small><strong>{metrics.autonomous_resolutions}</strong><em>{autonomyRate}% of resolved work</em></article>
-      <article><span className="overview-icon violet">⌁</span><small>Agent working</small><strong>{agentWorking.length}</strong><em>Parallel workflows</em></article>
-      <article><span className="overview-icon amber">◷</span><small>Waiting externally</small><strong>{waitingExternal.length}</strong><em>Technician or resident</em></article>
-      <article><span className="overview-icon red">!</span><small>Needs your attention</small><strong>{needsYou.length}</strong><em>Approval or staff reply</em></article>
-      <article><span className="overview-icon green">↻</span><small>Human touches avoided</small><strong>{metrics.human_touches_saved}</strong><em>Updates and coordination</em></article>
-    </section>
+    <RequestSummary metrics={metrics} tickets={tickets} />
 
     <div className="overview-grid">
       <section className="overview-panel decision-list">
@@ -60,8 +54,8 @@ export function OverviewView({ tickets, metrics, live, onReview }: Props) {
 
       <section className="overview-panel autonomy-panel">
         <div className="overview-panel-head"><div><h2>Autopilot at a glance</h2><p>What the operations service is handling for you</p></div></div>
-        <div className="autonomy-chart"><div className="autonomy-ring" style={{ background: `conic-gradient(#38c986 ${autonomyRate * 3.6}deg, #e9eef4 0deg)` }}><span><b>{autonomyRate}%</b><small>autonomy rate</small></span></div><dl><div><dt><i className="green" />Handled automatically</dt><dd>{metrics.autonomous_resolutions}</dd></div><div><dt><i className="violet" />Agent working</dt><dd>{agentWorking.length}</dd></div><div><dt><i className="amber" />Waiting externally</dt><dd>{waitingExternal.length}</dd></div><div><dt><i className="red" />Needs your attention</dt><dd>{needsYou.length}</dd></div></dl></div>
-        <div className="autonomy-callout"><b>{autonomyRate}% handled without concierge intervention</b><span>Autopilot keeps routine work moving in the background.</span></div>
+        <div className="autonomy-chart"><div className="autonomy-ring" style={{ background: `conic-gradient(#38c986 ${autonomyRate * 3.6}deg, #e9eef4 0deg)` }}><span><b>{autonomyRate}%</b><small>autonomy rate</small></span></div><dl><div><dt><i className="green" />Handled automatically</dt><dd>{metrics.autonomous_resolutions}</dd></div><div><dt><i className="blue" />Resolved with staff</dt><dd>{Math.max(0, metrics.resolved - metrics.autonomous_resolutions)}</dd></div><div><dt><i className="violet" />Agent working</dt><dd>{agentWorking.length}</dd></div><div><dt><i className="amber" />Waiting externally</dt><dd>{waitingExternal.length}</dd></div><div><dt><i className="red" />Needs your attention</dt><dd>{needsYou.length}</dd></div></dl></div>
+        <div className="autonomy-callout"><b>{metrics.resolved ? `${autonomyRate}% of resolved requests handled without staff intervention` : "No resolved requests yet"}</b><span>Autopilot keeps routine work moving in the background.</span></div>
       </section>
 
       <aside className={`overview-panel decision-detail ${primaryDecision ? "has-decision" : ""}`}>
@@ -70,8 +64,8 @@ export function OverviewView({ tickets, metrics, live, onReview }: Props) {
     </div>
 
     <section className="overview-panel active-work">
-      <div className="overview-panel-head"><div><h2>Everything else is being handled</h2><p>Live ownership and next action across active tickets</p></div><span>{active.length} visible</span></div>
-      <div className="overview-table"><table><thead><tr><th>Ticket</th><th>Requester</th><th>Category</th><th>Status</th><th>Priority</th><th>Next action</th><th>Updated</th></tr></thead><tbody>{active.map((ticket) => <tr key={ticket.ticket_id} onClick={() => onReview(ticket)}><td><b>{ticket.ticket_id}</b><span>{ticket.subject}</span></td><td>{ticket.requester}<small>{locationName(ticket.location_id)}</small></td><td>{humanize(ticket.kind)}</td><td><em className={`status ${ticket.status}`}>{ticketStatusLabel(ticket.status)}</em></td><td><i className={`priority-dot ${ticket.priority}`} />{humanize(ticket.priority)}</td><td><strong>{nextAction(ticket)}</strong></td><td>{time(ticket.updated_at)}</td></tr>)}</tbody></table>{active.length === 0 && <div className="overview-clear"><span>✓</span><div><b>All requests are complete</b><small>New work will appear after a request is submitted from the console.</small></div></div>}</div>
+      <div className="overview-panel-head"><div><h2>Recent requests and outcomes</h2><p>Open and resolved requests remain visible here. Select a request to see who handled it.</p></div><span>{active.length} visible</span></div>
+      <div className="overview-table"><table><thead><tr><th>Ticket</th><th>Requester</th><th>Category</th><th>Status</th><th>Priority</th><th>Next action</th><th>Updated</th></tr></thead><tbody>{active.map((ticket) => <tr key={ticket.ticket_id} onClick={() => onReview(ticket)}><td><b>{ticket.ticket_id}</b><span>{ticket.subject}</span></td><td>{ticket.requester}<small>{locationName(ticket.location_id)}</small></td><td>{humanize(ticket.kind)}</td><td><em className={`status ${ticket.status}`}>{ticketStatusLabel(ticket.status)}</em></td><td><i className={`priority-dot ${ticket.priority}`} />{humanize(ticket.priority)}</td><td><strong>{nextAction(ticket)}</strong></td><td>{time(ticket.updated_at)}</td></tr>)}</tbody></table>{active.length === 0 && <div className="overview-clear"><span>✓</span><div><b>No requests yet</b><small>New work will appear after a request is submitted from the console.</small></div></div>}</div>
     </section>
 
     <footer className="overview-impact"><span>Autopilot continuously monitors and resolves requests.</span><b>Agent actions <i>{live.impact.actions_performed}</i></b><b>Verified resolutions <i>{live.impact.verified_resolutions}</i></b><b>Worker capacity <i>{live.agent.worker_count}</i></b><b>Active workflows <i>{live.agent.active_tickets.length}</i></b></footer>
