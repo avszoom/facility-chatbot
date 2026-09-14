@@ -145,7 +145,9 @@ def main() -> None:
         "Sid": "InvokeBuildingOpsAgentCore",
         "Effect": "Allow",
         "Action": "bedrock-agentcore:InvokeAgentRuntime",
-        "Resource": runtime_arn,
+        # InvokeAgentRuntime is authorized against the runtime endpoint ARN,
+        # not only the parent runtime returned by the control-plane API.
+        "Resource": [runtime_arn, f"{runtime_arn}/runtime-endpoint/*"],
     })
     iam.put_role_policy(
         RoleName=EC2_ROLE,
