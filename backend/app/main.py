@@ -75,6 +75,13 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
             "simulation": runtime.simulation.status(),
             "building": runtime.building.snapshot(),
             "agent": {
+                "deliveries": runtime.repository.workflow_deliveries(),
+                "ticket_progress": {
+                    ticket.ticket_id: {
+                        "latest_event": next((event for event in reversed(all_events) if event["ticket_id"] == ticket.ticket_id), None),
+                        "contributions": action_contributions([event for event in all_events if event["ticket_id"] == ticket.ticket_id]),
+                    } for ticket in tickets
+                },
                 "status": "online",
                 "runtime": runtime.agent.name,
                 "provider": runtime.agent.provider,

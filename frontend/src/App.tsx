@@ -1,3 +1,4 @@
+import "./activity-workspace.css";
 import { RequestSummary } from "./RequestSummary";
 import { TicketAutomation } from "./TicketAutomation";
 import { FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -125,42 +126,29 @@ function InboxView({ tickets, metrics, live, selectedId, detail, busy, onSelect,
       <aside className="context-panel">{detail && occupant && location ? <><section className="context-card occupant-card"><div className="panel-heading"><div><p>REQUESTER</p><h3>Resident record</h3></div><button aria-label="More resident actions">•••</button></div><div className="person-summary"><span>{occupant.initials}</span><div><b>{occupant.name}</b><small>{occupant.role}</small><em>{occupant.home}</em></div></div><dl><div><dt>Email</dt><dd>{occupant.email}</dd></div><div><dt>Phone</dt><dd>{occupant.phone}</dd></div><div><dt>Home</dt><dd>{occupant.floor}</dd></div><div><dt>Access</dt><dd>{occupant.access}</dd></div></dl></section><section className="context-card"><div className="panel-heading"><div><p>LOCATION</p><h3>{location.name}</h3></div><span className={`condition ${location.state.toLowerCase()}`}>{location.state}</span></div><div className="location-meta"><span>{location.floor}</span><span>{location.zone}</span><span>{location.occupancy} occupied</span></div><div className="sensor-reading"><div><small>LINKED SENSOR</small><b>{location.sensor}</b></div><strong>{location.reading}</strong></div><div className="sparkline" aria-label="Sensor reading trend"><i /><i /><i /><i /><i /><i /><i /><i /></div><small className="freshness"><span /> Live reading · updated 8 seconds ago</small></section><MailPreview ticket={detail.ticket} events={detail.events} /></> : <div className="empty-context">Related resident and building records appear with the selected request.</div>}</aside></section></>;
 }
 
-function AgentLiveView({ live, busy, onPulse, onReview }: { live: LiveOperations; busy: boolean; onPulse: () => void; onReview: (ticket: Ticket) => void }) {
-  const stages = ["new", "triaging", "working", "needs_approval", "waiting_technician", "waiting_verification"];
-  return <section className="agent-live-view">
-    <div className="engine-banner">
-      <div><p>BACKGROUND OPERATIONS</p><h2>Parallel tickets. Durable coordinator loops.</h2><span>{live.agent.worker_count} workers advance independent tickets concurrently. Each coordinator selects and checkpoints one bounded specialist handoff at a time.</span></div>
-      <div className="engine-health"><span><i />Services healthy</span><small>Last refresh {ticketTime(new Date().toISOString())}</small></div>
-    </div>
-    <section className="impact-strip">
-      <article className="autonomy-impact"><small>Autonomy rate</small><b>{live.impact.autonomy_rate}%</b><span>Resolved without concierge</span></article>
-      <article><small>Agent actions</small><b>{live.impact.actions_performed}</b><span>Across all workflows</span></article>
-      <article><small>Verified resolutions</small><b>{live.impact.verified_resolutions}</b><span>Closed with evidence</span></article>
-      <article><small>Message retries</small><b>{live.messaging.retrying}</b><span>{live.messaging.dead_letters} dead-lettered</span></article>
-      <article><small>Touches avoided</small><b>{live.impact.human_touches_saved}</b><span>Updates and coordination</span></article>
-      <article><small>Active workflows</small><b>{live.agent.active_tickets.length}</b><span>{live.agent.queued_tasks} queued messages</span></article>
-    </section>
-    <div className="engines-grid">
-      <section className="engine-card world-engine">
-        <div className="engine-card-head"><span className="engine-number">01</span><div><p>BUILDING ACTIVITY</p><h3>Sensor and request service</h3><small>Residents · Sensors · Equipment · Local synthetic feed</small></div><span className="engine-online"><i />ONLINE</span></div>
-        <div className="engine-flow"><span>Sensor telemetry</span><i>→</i><span>Publish event</span><i>→</i><span>building.events</span></div>
-        <div className="world-pulse"><div className="radar"><i /><i /><i /><b>BLDG A</b></div><div><small>REQUEST SOURCE</small><strong>CONSOLE</strong><span>Sensors remain live · no background tickets</span><button onClick={onPulse} disabled={busy}>Trigger test event</button></div></div>
-        {live.simulation.last_event ? <article className="last-world-event"><span>LATEST BUILDING ACTIVITY</span><b>{live.simulation.last_event.subject}</b><small>{live.simulation.last_event.ticket_id} · {humanize(live.simulation.last_event.type)} · {live.simulation.last_event.location_id}</small></article> : <article className="last-world-event"><span>MONITORING</span><b>Building systems are reporting normally</b><small>The first issue will appear only after a console action.</small></article>}
-      </section>
-      <section className="engine-card agent-engine">
-        <div className="engine-card-head"><span className="engine-number">02</span><div><p>OPERATIONS SERVICE</p><h3>Durable coordinator loops</h3><small>{live.agent.runtime} · {live.agent.provider} / {live.agent.model} · {live.agent.worker_count} concurrent ticket loops · Policy gateway</small></div><span className="engine-online"><i />{live.agent.real_model ? "AI MODEL LIVE" : "FIXTURE MODE"}</span></div>
-        <div className="engine-flow"><span>Coordinator selects</span><i>→</i><span>One specialist runs</span><i>→</i><span>Persist + resume</span></div>
-        <div className="specialist-roster"><div><small>ACCOUNTABLE LOOP OWNER</small><b>{live.agent.coordinator_role}</b></div><i>↔</i><section>{live.agent.specialist_roles.map((role) => <span key={role}><em>AI</em>{role.replace(" Intelligence", "").replace(" Agent", "")}</span>)}</section></div>
-        <div className="message-bus-status"><b>{live.messaging.broker}</b><span>At-least-once delivery · Idempotent consumers · {live.messaging.completed} acknowledged</span></div>
-        <div className="agent-queue-live">
-          {live.agent.active_tickets.length ? live.agent.active_tickets.slice(0, 5).map((ticket) => { const workflow = live.agent.workflow_states[ticket.ticket_id]; const checkpoint = workflow?.checkpoint || {}; return <button onClick={() => onReview(ticket)} key={ticket.ticket_id}><span className="live-agent-orb">AI<i /></span><div><small>WF-{ticket.ticket_id.replace("TKT-", "")} · Loop {String(checkpoint.loop_iteration || 0)} · Checkpoint v{workflow?.version || ticket.version}</small><b>{ticket.subject}</b><em>{String(checkpoint.active_agent || ticket.waiting_reason || activityCopy[ticket.status])}{checkpoint.objective ? ` · ${String(checkpoint.objective)}` : ""}</em><div className="mini-stage">{stages.map((stage, index) => <i className={index <= Math.min(stageIndex[ticket.status], 5) ? "filled" : ""} key={stage} />)}</div></div><span className={`status ${ticket.status}`}>{ticketStatusLabel(ticket.status)}</span></button>; }) : <div className="agent-idle"><span>AI</span><b>{live.agent.worker_count} workers ready</b><small>The next published workflow will be consumed automatically.</small></div>}
-        </div>
-      </section>
-    </div>
-    <section className="global-stream">
-      <div className="global-stream-head"><div><p>PUBLIC ACTIVITY STREAM</p><h3>What Autopilot did and discovered</h3><span>Decision summaries, evidence, tool outcomes and workflow transitions—not private chain-of-thought.</span></div><span className="stream-live"><i />STREAMING</span></div>
-      <div className="global-events">{live.recent_events.length ? live.recent_events.map((event) => <article key={event.event_id}><time>{ticketTime(event.created_at)}</time><span className={`event-icon ${eventTone(event)}`}>{event.event_type === "message.sent" ? "✉" : event.event_type.includes("verification") ? "✓" : event.event_type.includes("approval") ? "!" : "AI"}</span><div><b>{humanize(event.event_type)}</b><small>{event.ticket_id} · {event.actor}</small></div><p>{event.summary}</p></article>) : <div className="agent-idle"><b>No agent events yet</b><small>Submit a console request to create the first workflow.</small></div>}</div>
-    </section>
+function AgentLiveView({ live, tickets, onReview }: { live: LiveOperations; tickets: Ticket[]; onReview: (ticket: Ticket) => void }) {
+  const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const groups = { all: tickets, open: tickets.filter(t => t.status !== "resolved"), attention: tickets.filter(t => ["needs_approval", "escalated"].includes(t.status)), resolved: tickets.filter(t => t.status === "resolved") };
+  const visible = groups[filter as keyof typeof groups].filter(t => (t.subject + t.ticket_id + t.location_id).toLowerCase().includes(query.toLowerCase()));
+  const running = new Set((live.agent.deliveries || []).filter(d => d.status === "processing").map(d => d.ticket_id));
+  return <section className="activity-workspace">
+    <header><div><h2>Request progress</h2><p>Every request stays visible, including completed work and failures. Select a row to review its evidence or respond.</p></div><b>{live.agent.deliveries ? running.size : "—"} tickets with leased work · {live.agent.worker_count} configured workers</b></header>
+    {live.messaging.dead_letters > 0 && <p className="activity-alert">{live.messaging.dead_letters} workflow messages exhausted their retries. Check “Needs attention” for the affected requests and recorded errors.</p>}
+    <nav aria-label="Request progress filters">{Object.entries(groups).map(([key, values]) => <button key={key} className={filter === key ? "selected" : ""} onClick={() => setFilter(key)}>{({all:"All requests",open:"Open",attention:"Needs attention",resolved:"Resolved"})[key]} · {values.length}</button>)}<input aria-label="Search requests" placeholder="Search request, ID or location" value={query} onChange={e => setQuery(e.target.value)} /></nav>
+    <p>{visible.length} of {tickets.length} requests shown. Stage describes ticket progress; “Running” means a workflow message currently has a valid worker lease.</p>
+    <div className="activity-table"><table><thead><tr><th>Request / location</th><th>Type</th><th>Stage / execution</th><th>Current owner & next step</th><th>Recorded work</th><th>Latest progress</th></tr></thead><tbody>{visible.map(ticket => {
+      const progress = live.agent.ticket_progress?.[ticket.ticket_id];
+      const checkpoint = live.agent.workflow_states[ticket.ticket_id]?.checkpoint;
+      const attention = ["needs_approval", "escalated"].includes(ticket.status);
+      const waiting = ticket.status === "waiting_technician";
+      const closed = ticket.status === "resolved";
+      const delivery = (live.agent.deliveries || []).find(d => d.ticket_id === ticket.ticket_id && d.status === "processing");
+      const owner = closed ? "Completed" : attention ? "Concierge" : waiting ? "Technician" : delivery?.role || String(checkpoint?.active_agent || "Operations Coordinator");
+      const execution = closed ? "Complete" : attention ? "Your input needed" : waiting ? "Waiting for field work" : !live.agent.deliveries ? "Loading execution state" : running.has(ticket.ticket_id) ? "Running" : "Queued / scheduled";
+      return <tr key={ticket.ticket_id}><td><button onClick={() => onReview(ticket)}><b>{ticket.subject}</b><small>{ticket.ticket_id} · {ticket.location_id}</small></button></td><td>{ticket.kind === "unknown" ? "Classifying" : humanize(ticket.kind)}</td><td><span className={"status " + ticket.status}>{ticketStatusLabel(ticket.status)}</span><small>{execution}</small></td><td><b>{owner}</b><p>{closed ? "Open to review the resolution and contributions." : ticket.waiting_reason || (attention ? "Open request to review the error or decision." : "Waiting for the next workflow step.")}</p></td><td>{progress ? <><b>{progress.contributions.agent_percent == null ? "—" : progress.contributions.agent_percent + "%"} agent actions</b><small>{progress.contributions.agent_actions} agent · {progress.contributions.human_actions} staff</small></> : "Loading recorded work"}</td><td><p>{progress?.latest_event?.summary || "Awaiting progress data"}</p><small>{progress?.latest_event ? ticketTime(progress.latest_event.created_at) : ticketTime(ticket.updated_at)}</small></td></tr>;
+    })}</tbody></table>{!visible.length && <p>No requests match this filter.</p>}</div>
+    <details className="activity-diagnostics"><summary>Service details and message delivery</summary><p>{live.agent.runtime} · {live.agent.model} · {live.agent.worker_count} configured workers</p><p>{live.messaging.pending} pending messages · {live.messaging.processing} leased messages · {live.messaging.retrying} retrying · {live.messaging.dead_letters} failed messages. Message counts are not ticket counts.</p></details>
   </section>;
 }
 
@@ -246,7 +234,7 @@ export default function App() {
     {error && <p className="error-banner">Operations service unavailable. Start the local services and this workspace will reconnect automatically.</p>}
     {view === "overview" && <OverviewView tickets={tickets} metrics={metrics} live={live} onReview={reviewTicket} />}
     {view === "requests" && <InboxView tickets={tickets} metrics={metrics} live={live} selectedId={selectedId} detail={detail} busy={busy} onSelect={setSelectedId} onCreate={() => setCreating(true)} onLoad={loadSamples} onProcess={() => operate(() => api.processScheduled())} onApprove={(approved) => detail && operate(() => api.approve(detail.ticket.ticket_id, approved))} onRespond={(response) => detail && operate(() => api.respond(detail.ticket.ticket_id, response))} />}
-    {view === "agent" && <AgentLiveView live={live} busy={busy} onPulse={() => operate(() => api.simulationPulse())} onReview={reviewTicket} />}
+    {view === "agent" && <AgentLiveView live={live} tickets={tickets} onReview={reviewTicket} />}
     {view === "generator" && <GeneratorView live={live} busy={busy} onPublishRequest={publishRequest} onGenerate={(count, scenarioType) => operate(() => api.generateRequests({ count, scenario_type: scenarioType }))} onConfigure={(running, intervalSeconds) => operate(() => api.configureSimulation({ running, interval_seconds: intervalSeconds }))} onOpenActivity={() => setView("agent")} onOpenBuilding={() => setView("building")} />}
     {view === "tickets" && <TicketsView tickets={tickets} onReview={reviewTicket} />}
     {view === "building" && <BuildingView tickets={tickets} live={live} />}

@@ -194,6 +194,8 @@ export interface LiveOperations {
     specialist_roles: string[];
     worker_count: number;
     active_executions: number;
+    deliveries?: Array<{ticket_id: string; status: string; attempts: number; step: string; role: string | null; error: string | null}>;
+    ticket_progress?: Record<string, {latest_event: TicketEvent | null; contributions: {agent_actions: number; human_actions: number; agent_percent: number | null}}>;
     queued_tasks: number;
     active_tickets: Ticket[];
     workflow_states: Record<string, {

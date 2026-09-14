@@ -493,6 +493,21 @@ class SQLiteOperationsRepository:
             "dead_letters": counts.get("dead_letter", 0),
         }
 
+    def workflow_deliveries(self) -> list[dict[str, Any]]:
+        with self.connection() as connection:
+            rows = connection.execute("""SELECT d.status,d.attempts,d.lease_until,d.last_error,m.body
+                FROM pubsub_deliveries d JOIN pubsub_messages m ON m.message_id=d.message_id
+                WHERE d.subscription='operations.workflow' AND d.status != 'completed'""").fetchall()
+        result = []
+        now = datetime.now(UTC).isoformat()
+        for row in rows:
+            job = json.loads(row["body"]).get("payload", {}).get("job", {})
+            state = row["status"]
+            if state == "processing" and (not row["lease_until"] or row["lease_until"] <= now):
+                state = "lease_expired"
+            result.append({"ticket_id": job.get("ticket_id"), "status": state, "attempts": row["attempts"], "step": job.get("job_type"), "role": job.get("payload", {}).get("role"), "error": row["last_error"]})
+        return result
+
     def save_workflow_state(self, state: WorkflowState) -> WorkflowState:
         with self.connection() as connection:
             connection.execute(
