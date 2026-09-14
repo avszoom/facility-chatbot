@@ -9,6 +9,7 @@ export type TicketStatus =
   | "escalated";
 
 export interface Ticket {
+  resolved_at?: string | null;
   ticket_id: string;
   subject: string;
   description: string;
@@ -49,6 +50,8 @@ export interface TicketEvent {
 }
 
 export interface ActionRecord {
+  created_at?: string;
+  completed_at?: string | null;
   action_id: string;
   action_type: string;
   risk_tier: "autonomous" | "approval_required" | "forbidden";

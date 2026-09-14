@@ -7,6 +7,7 @@ import "./mission-control.css";
 import { sortByProgress, progressStage } from "./live-progress";
 import { LiveWork } from "./LiveWork";
 import { singleFlightRefresh } from "./live-refresh";
+import { SensorEvidence } from "./SensorEvidence";
 
 const roles = ["Intake & Safety Agent", "Building Context Agent", "Resident Knowledge Agent", "Sensor Intelligence Agent", "Maintenance Intelligence Agent", "Verification Agent"];
 const names = ["Intake & safety", "Building context", "Resident knowledge", "Sensor intelligence", "Maintenance history", "Verification"];
@@ -59,6 +60,7 @@ function Investigation({ detail, live, onReview }: { detail: TicketDetail; live:
         const points = values.map((v, i) => `${i / Math.max(1, values.length - 1) * 160},${40 - (v - low) / (high - low || 1) * 32}`).join(" ");
         return <article key={id} className={sensor.state.toLowerCase()}><small>{id} · live now</small><b>{sensor.value}</b><span>{sensor.state} · target {sensor.target}</span>{values.length > 1 && <svg viewBox="0 0 160 45" role="img" aria-label={`${id}: recent sensor readings`}><polyline points={points} fill="none" stroke="currentColor" strokeWidth="2" /></svg>}<small>Recent readings · relative scale</small></article>;
       })}</div>}
+      <SensorEvidence detail={detail} live={live} />
       {detail.actions.map(a => <details className="mc-action" key={a.action_id}><summary>{humanize(a.action_type)} · {a.status} · {a.policy_rule}</summary><p>{a.rationale}</p><div><pre>{JSON.stringify(a.before_state, null, 2)}</pre><span>→</span><pre>{JSON.stringify(a.after_state, null, 2)}</pre></div></details>)}
     </div><aside className="mc-evidence"><h3>{chosen ? names[roles.indexOf(chosen)] : "Live evidence trail"}</h3><small>{chosen ? "Select again to see all activity" : "Recorded findings, actions and resident updates"}</small><div>{[...selectedEvents].reverse().map(e => <article key={e.event_id}><span>{time(e.created_at)}</span><b>{e.actor}</b><p>{e.summary}</p><small>{humanize(e.event_type.replaceAll(".", " "))}</small></article>)}</div></aside></div>
   </section>;

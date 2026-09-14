@@ -1,5 +1,6 @@
 import { MissionControl, Pipeline } from "./MissionControl";
 import { RequestReview } from "./RequestReview";
+import { SensorEvidence } from "./SensorEvidence";
 import { singleFlightRefresh } from "./live-refresh";
 import { RequestSummary } from "./RequestSummary";
 import { TicketAutomation } from "./TicketAutomation";
@@ -120,6 +121,7 @@ function InboxView({ tickets, metrics, live, selectedId, detail, busy, onSelect,
         {["escalated", "needs_approval"].includes(detail.ticket.status) && <RequestReview summary={detail.review_summary} />}
         {detail.ticket.status === "escalated" && <StaffResponseBox key={detail.ticket.ticket_id} requester={detail.ticket.requester} busy={busy} canResolve={detail.review_summary?.can_resolve === true} onRespond={onRespond} />}
         {detail.work_order && <section className="work-order-card"><div className="work-order-head"><div><span>TECHNICIAN WORK ORDER</span><h3>{detail.work_order.work_order_id}</h3></div><em className={detail.work_order.status}>{detail.work_order.status === "completed" ? "Completed" : "Ongoing"}</em></div><div className="work-order-facts"><span><small>Assigned technician</small><b>{detail.work_order.technician}</b></span><span><small>Trade</small><b>{humanize(detail.work_order.trade)}</b></span><span><small>Location</small><b>{location?.name}</b></span><span><small>{detail.work_order.status === "completed" ? "Finished" : "Estimated completion"}</small><b>{detail.work_order.status === "completed" && detail.work_order.completed_at ? ticketTime(detail.work_order.completed_at) : `${Math.max(0, Math.ceil((new Date(detail.work_order.due_at).getTime() - Date.now()) / 1000))}s remaining`}</b></span></div><div className="work-order-procedure"><small>WORK INSTRUCTIONS</small><p>{detail.work_order.procedure}</p></div>{detail.work_order.completion_notes && <div className="work-order-result"><small>CAUSE FOUND &amp; REPAIR COMPLETED</small><p>{detail.work_order.completion_notes}</p></div>}</section>}
+        <SensorEvidence detail={detail} live={live} />
         <TicketAutomation detail={detail} />
         <div className="record-tabs"><b>Activity</b><span>System changes {detail.actions.length}</span><span>Work order {detail.work_order ? "1" : "0"}</span></div>
         <div className="activity-list">{sortedEvents.map((event) => <article key={event.event_id}><span className={`event-icon ${eventTone(event)}`}>{["message.sent", "staff.response_sent"].includes(event.event_type) ? "✉" : event.event_type.includes("verification") || event.event_type === "ticket.resolved" ? "✓" : event.event_type.includes("approval") ? "!" : "AI"}</span><div><span><b>{humanize(event.event_type)}</b><time>{ticketTime(event.created_at)}</time></span><p>{event.summary}</p><small>{event.actor}</small></div></article>)}</div>
