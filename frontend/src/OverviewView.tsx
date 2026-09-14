@@ -1,4 +1,3 @@
-import { RequestSummary } from "./RequestSummary";
 import type { LiveOperations, Metrics, Ticket } from "./types";
 import { humanize, ticketStatusLabel } from "./format";
 
@@ -41,11 +40,10 @@ export function OverviewView({ tickets, metrics, live, onReview }: Props) {
   const otherOpen = Math.max(0, metrics.active - needsYou.length);
 
   return <section className="overview-view">
-    <RequestSummary metrics={metrics} tickets={tickets} />
 
     <div className="overview-grid">
       <section className="overview-panel decision-list">
-        <div className="overview-panel-head"><div><h2>Only {needsYou.length} thing{needsYou.length === 1 ? "" : "s"} need you</h2><p>Autopilot is handling the other {otherOpen} open requests.</p></div><span className="decision-count">{needsYou.length}</span></div>
+        <div className="overview-panel-head"><div><h2>{needsYou.length ? `${needsYou.length} request${needsYou.length === 1 ? "" : "s"} need your attention` : "No requests need your attention"}</h2><p>Autopilot is handling the other {otherOpen} open requests.</p></div><span className="decision-count">{needsYou.length}</span></div>
         {needsYou.length ? needsYou.slice(0, 2).map((ticket) => <button className="decision-row" onClick={() => onReview(ticket)} key={ticket.ticket_id}>
           <span className={`decision-severity ${ticket.priority}`}>{ticket.priority.toUpperCase()}</span>
           <div><b>{ticket.subject}</b><small>{ticket.ticket_id} · {locationName(ticket.location_id)}</small><p>{ticket.status === "needs_approval" ? "Autopilot completed the investigation and needs approval for the consequential next step." : "Autopilot could not complete this safely and routed the exception to you."}</p><em>{nextAction(ticket)} →</em></div>
@@ -53,13 +51,13 @@ export function OverviewView({ tickets, metrics, live, onReview }: Props) {
       </section>
 
       <section className="overview-panel autonomy-panel">
-        <div className="overview-panel-head"><div><h2>Autopilot at a glance</h2><p>What the operations service is handling for you</p></div></div>
-        <div className="autonomy-chart"><div className="autonomy-ring" style={{ background: `conic-gradient(#38c986 ${autonomyRate * 3.6}deg, #e9eef4 0deg)` }}><span><b>{autonomyRate}%</b><small>autonomy rate</small></span></div><dl><div><dt><i className="green" />Handled automatically</dt><dd>{metrics.autonomous_resolutions}</dd></div><div><dt><i className="blue" />Resolved with staff</dt><dd>{Math.max(0, metrics.resolved - metrics.autonomous_resolutions)}</dd></div><div><dt><i className="violet" />Agent working</dt><dd>{agentWorking.length}</dd></div><div><dt><i className="amber" />Waiting externally</dt><dd>{waitingExternal.length}</dd></div><div><dt><i className="red" />Needs your attention</dt><dd>{needsYou.length}</dd></div></dl></div>
-        <div className="autonomy-callout"><b>{metrics.resolved ? `${autonomyRate}% of resolved requests handled without staff intervention` : "No resolved requests yet"}</b><span>Autopilot keeps routine work moving in the background.</span></div>
+        <div className="overview-panel-head"><div><h2>How requests were closed</h2><p>Whole-request outcomes, not the share of work done by agents</p></div></div>
+        <div className="autonomy-chart"><div className="autonomy-ring" style={{ background: `conic-gradient(#38c986 ${autonomyRate * 3.6}deg, #e9eef4 0deg)` }}><span><b>{autonomyRate}%</b><small>fully automatic closures</small></span></div><dl><div><dt><i className="green" />Handled automatically</dt><dd>{metrics.autonomous_resolutions}</dd></div><div><dt><i className="blue" />Resolved with staff</dt><dd>{Math.max(0, metrics.resolved - metrics.autonomous_resolutions)}</dd></div><div><dt><i className="violet" />Agent working</dt><dd>{agentWorking.length}</dd></div><div><dt><i className="amber" />Waiting externally</dt><dd>{waitingExternal.length}</dd></div><div><dt><i className="red" />Needs your attention</dt><dd>{needsYou.length}</dd></div></dl></div>
+        <div className="autonomy-callout"><b>{metrics.resolved ? `${autonomyRate}% of resolved requests handled without staff intervention` : "No resolved requests yet"}</b><span>A staff-assisted closure may still include extensive agent work. Open a request to see its action-by-action automation percentage.</span></div>
       </section>
 
       <aside className={`overview-panel decision-detail ${primaryDecision ? "has-decision" : ""}`}>
-        {primaryDecision ? <><div className="decision-detail-head"><span>{primaryDecision.ticket_id}</span><b className={`priority-chip ${primaryDecision.priority}`}>{primaryDecision.priority}</b></div><h2>{primaryDecision.subject}</h2><p>{primaryDecision.requester} · {locationName(primaryDecision.location_id)}</p><div className="mini-progress"><i className="done" /><i className="done" /><i className="done" /><i className="current" /><i /></div><h3>Agent summary</h3><ul><li>Loaded resident and apartment context</li><li>Reviewed linked building telemetry</li><li>Applied the autonomy policy</li><li>Prepared the recommended next action</li></ul><div className="recommended-action"><b>Recommended action</b><span>{primaryDecision.status === "needs_approval" ? "Approve qualified technician dispatch and continue automated verification." : "Provide the missing facility answer and reply to the requester."}</span></div><button onClick={() => onReview(primaryDecision)}>{primaryDecision.status === "needs_approval" ? "Review approval" : "Respond to request"}</button></> : <div className="decision-detail-clear"><span>✓</span><h2>Autopilot has this covered</h2><p>No consequential decisions are waiting for Maya.</p></div>}
+        {primaryDecision ? <><div className="decision-detail-head"><span>{primaryDecision.ticket_id}</span><b className={`priority-chip ${primaryDecision.priority}`}>{primaryDecision.priority}</b></div><h2>{primaryDecision.subject}</h2><p>{primaryDecision.requester} · {locationName(primaryDecision.location_id)}</p><div className="mini-progress"><i className="done" /><i className="done" /><i className="done" /><i className="current" /><i /></div><h3>Agent summary</h3><ul><li>Loaded resident and apartment context</li><li>Reviewed linked building telemetry</li><li>Applied the autonomy policy</li><li>Prepared the recommended next action</li></ul><div className="recommended-action"><b>Recommended action</b><span>{primaryDecision.status === "needs_approval" ? "Approve qualified technician dispatch and continue automated verification." : "Provide the missing facility answer and reply to the requester."}</span></div><button onClick={() => onReview(primaryDecision)}>{primaryDecision.status === "needs_approval" ? "Review approval" : "Respond to request"}</button></> : <div className="decision-detail-clear"><span>✓</span><h2>No decisions pending</h2><p>No consequential decisions are waiting for Maya.</p></div>}
       </aside>
     </div>
 

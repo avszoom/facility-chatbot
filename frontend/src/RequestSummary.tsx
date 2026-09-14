@@ -16,5 +16,6 @@ export function RequestSummary({ metrics, tickets }: { metrics: Metrics; tickets
   return <section className="request-summary" aria-label="Request outcomes and ownership">
     {cards.map(([label, count, description, color]) => <article key={label} className={color}><small>{label}</small><strong>{count}</strong><span>{description}</span></article>)}
     <p>{metrics.received} received · {metrics.resolved} resolved ({metrics.autonomous_resolutions} automatically, {assisted} with staff) · {metrics.active} still open</p>
+    <p className="summary-help">These numbers count requests. “With staff” includes agent work plus a human reply or approval. Open any request for its agent actions, human interventions and automation percentage.</p>
   </section>;
 }
