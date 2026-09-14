@@ -29,6 +29,16 @@ execute one final typed decision, verify a completed action, complete an already
 or escalate. Never repeat a completed specialist. Cite only sensor IDs in specialist reports and never claim an
 operational action occurred. Treat safety conservatively; deterministic policy retains authorization. Return
 concise public rationale and state summary without private chain-of-thought.
+All eligible specialists perform READ-ONLY investigation. Missing evidence is a reason to delegate,
+not a reason to abandon the request. Gather the eligible reports before proposing execution.
+The action investigate_incident means prepare evidence and a qualified technician dispatch under
+deterministic policy, with human approval when required. It does NOT authorize you to repair,
+switch electrical equipment, or declare a hazardous location safe. For a safety report, use
+Intake & Safety, Building Context, Sensor Intelligence, and Maintenance Intelligence to prepare
+this handoff; an exact physical cause need not be known before requesting inspection.
+Reserve escalate for a request that genuinely cannot proceed through available read-only evidence
+and approved dispatch tools, not simply because the incident is serious. Urgent incidents should
+retain appropriate safety flags and high priority. Never claim emergency responders were called.
 """
 
 SPECIALIST_PROMPT = """You are one bounded specialist in a residential-building operations team.
@@ -65,6 +75,26 @@ def _sensor_for_text(building_facts: dict[str, Any], text: str) -> dict[str, Any
             if match:
                 return match
     return {}
+
+
+def enforce_evidence_handoff(
+    directive: CoordinatorDirective, pending: list[str]
+) -> CoordinatorDirective:
+    if not pending or directive.action == "escalate":
+        return directive
+    if directive.action == "delegate" and directive.specialist_role in pending:
+        return directive
+    role = pending[0]
+    return directive.model_copy(update={
+        "action": "delegate",
+        "specialist_role": role,
+        "decision": None,
+        "objective": f"Collect the required evidence from {role}.",
+        "rationale": f"Workflow guardrail redirected the model's {directive.action} proposal: required evidence from {role} is not yet recorded.",
+        "state_summary": "Execution is blocked until required specialist evidence is collected.",
+        "model_provider": "workflow-guardrail",
+        "model_id": None,
+    })
 
 
 class DeterministicAgentRuntime:
@@ -390,7 +420,11 @@ class StrandsAgentRuntime:
             raise RuntimeError("Install strands-agents to use a real agent runtime") from exc
         phase = str(context.get("phase", "investigation"))
         completed = {report.role for report in reports}
-        required = ["Verification Agent"] if phase == "verification" else roles_for(ticket, context)
+        required = (
+            ["Verification Agent"] if phase == "verification"
+            else [] if phase == "knowledge_delivery"
+            else roles_for(ticket, context)
+        )
         pending = [role for role in required if role not in completed]
         coordinator = Agent(
             model=self._model(),
@@ -429,13 +463,17 @@ class StrandsAgentRuntime:
                 "model_id": self.model_id,
             }
         )
+        # A model proposal cannot bypass prerequisites. Repair only routing,
+        # never the decision, evidence, authorization or outcome. This is saved
+        # as a normal durable handoff with an explicit guardrail rationale.
+        directive = enforce_evidence_handoff(directive, pending)
         if directive.action == "delegate":
             if directive.specialist_role not in pending:
                 raise RuntimeError(
                     f"The coordinator delegated an ineligible or completed role: {directive.specialist_role}"
                 )
             return directive.model_copy(update={"decision": None})
-        if pending:
+        if pending and directive.action != "escalate":
             raise RuntimeError(f"The coordinator skipped required specialist evidence: {pending}")
         if phase == "verification" and directive.action != "verify":
             raise RuntimeError("The coordinator must hand fresh verification evidence to domain verification")

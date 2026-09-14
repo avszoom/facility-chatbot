@@ -1,4 +1,4 @@
-import "./activity-workspace.css";
+import { MissionControl } from "./MissionControl";
 import { RequestSummary } from "./RequestSummary";
 import { TicketAutomation } from "./TicketAutomation";
 import { FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -127,30 +127,9 @@ function InboxView({ tickets, metrics, live, selectedId, detail, busy, onSelect,
 }
 
 function AgentLiveView({ live, tickets, onReview }: { live: LiveOperations; tickets: Ticket[]; onReview: (ticket: Ticket) => void }) {
-  const [filter, setFilter] = useState("all");
-  const [query, setQuery] = useState("");
-  const groups = { all: tickets, open: tickets.filter(t => t.status !== "resolved"), attention: tickets.filter(t => ["needs_approval", "escalated"].includes(t.status)), resolved: tickets.filter(t => t.status === "resolved") };
-  const visible = groups[filter as keyof typeof groups].filter(t => (t.subject + t.ticket_id + t.location_id).toLowerCase().includes(query.toLowerCase()));
-  const running = new Set((live.agent.deliveries || []).filter(d => d.status === "processing").map(d => d.ticket_id));
-  return <section className="activity-workspace">
-    <header><div><h2>Request progress</h2><p>Every request stays visible, including completed work and failures. Select a row to review its evidence or respond.</p></div><b>{live.agent.deliveries ? running.size : "—"} tickets with leased work · {live.agent.worker_count} configured workers</b></header>
-    {live.messaging.dead_letters > 0 && <p className="activity-alert">{live.messaging.dead_letters} workflow messages exhausted their retries. Check “Needs attention” for the affected requests and recorded errors.</p>}
-    <nav aria-label="Request progress filters">{Object.entries(groups).map(([key, values]) => <button key={key} className={filter === key ? "selected" : ""} onClick={() => setFilter(key)}>{({all:"All requests",open:"Open",attention:"Needs attention",resolved:"Resolved"})[key]} · {values.length}</button>)}<input aria-label="Search requests" placeholder="Search request, ID or location" value={query} onChange={e => setQuery(e.target.value)} /></nav>
-    <p>{visible.length} of {tickets.length} requests shown. Stage describes ticket progress; “Running” means a workflow message currently has a valid worker lease.</p>
-    <div className="activity-table"><table><thead><tr><th>Request / location</th><th>Type</th><th>Stage / execution</th><th>Current owner & next step</th><th>Recorded work</th><th>Latest progress</th></tr></thead><tbody>{visible.map(ticket => {
-      const progress = live.agent.ticket_progress?.[ticket.ticket_id];
-      const checkpoint = live.agent.workflow_states[ticket.ticket_id]?.checkpoint;
-      const attention = ["needs_approval", "escalated"].includes(ticket.status);
-      const waiting = ticket.status === "waiting_technician";
-      const closed = ticket.status === "resolved";
-      const delivery = (live.agent.deliveries || []).find(d => d.ticket_id === ticket.ticket_id && d.status === "processing");
-      const owner = closed ? "Completed" : attention ? "Concierge" : waiting ? "Technician" : delivery?.role || String(checkpoint?.active_agent || "Operations Coordinator");
-      const execution = closed ? "Complete" : attention ? "Your input needed" : waiting ? "Waiting for field work" : !live.agent.deliveries ? "Loading execution state" : running.has(ticket.ticket_id) ? "Running" : "Queued / scheduled";
-      return <tr key={ticket.ticket_id}><td><button onClick={() => onReview(ticket)}><b>{ticket.subject}</b><small>{ticket.ticket_id} · {ticket.location_id}</small></button></td><td>{ticket.kind === "unknown" ? "Classifying" : humanize(ticket.kind)}</td><td><span className={"status " + ticket.status}>{ticketStatusLabel(ticket.status)}</span><small>{execution}</small></td><td><b>{owner}</b><p>{closed ? "Open to review the resolution and contributions." : ticket.waiting_reason || (attention ? "Open request to review the error or decision." : "Waiting for the next workflow step.")}</p></td><td>{progress ? <><b>{progress.contributions.agent_percent == null ? "—" : progress.contributions.agent_percent + "%"} agent actions</b><small>{progress.contributions.agent_actions} agent · {progress.contributions.human_actions} staff</small></> : "Loading recorded work"}</td><td><p>{progress?.latest_event?.summary || "Awaiting progress data"}</p><small>{progress?.latest_event ? ticketTime(progress.latest_event.created_at) : ticketTime(ticket.updated_at)}</small></td></tr>;
-    })}</tbody></table>{!visible.length && <p>No requests match this filter.</p>}</div>
-    <details className="activity-diagnostics"><summary>Service details and message delivery</summary><p>{live.agent.runtime} · {live.agent.model} · {live.agent.worker_count} configured workers</p><p>{live.messaging.pending} pending messages · {live.messaging.processing} leased messages · {live.messaging.retrying} retrying · {live.messaging.dead_letters} failed messages. Message counts are not ticket counts.</p></details>
-  </section>;
+  return <MissionControl live={live} tickets={tickets} onReview={onReview} />;
 }
+
 
 function TicketsView({ tickets, onReview }: { tickets: Ticket[]; onReview: (ticket: Ticket) => void }) {
   const [scope, setScope] = useState<"all" | "mine" | "open">("all");

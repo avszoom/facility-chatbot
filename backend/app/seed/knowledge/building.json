@@ -54,6 +54,42 @@
     "keywords": ["resident lounge", "sky lounge", "roof", "terrace", "reservation", "party", "event"]
   },
   {
+    "title": "Laundry facilities and payment",
+    "content": "Shared laundry rooms are available on residential floors 3 through 9 from 7:00 AM to 10:00 PM. Residents pay at the machine using the laundry terminal. Report the floor and machine label for a failed wash or payment issue; concierge must review any refund. Do not use a machine that smells burnt, leaks, or shows exposed wiring.",
+    "source": "Northstar Residences Handbook · Laundry · revision 2026-09",
+    "keywords": ["laundry", "washer", "dryer", "washing", "clothes", "laundromat"]
+  },
+  {
+    "title": "Quiet hours and noise reports",
+    "content": "Quiet hours are 10:00 PM to 8:00 AM daily. Keep music and gatherings at a level that does not disturb neighboring homes. Send the concierge the floor, approximate location, time and description of a persistent noise. The concierge handles follow-up; residents should not confront neighbors.",
+    "source": "Northstar Residences Handbook · Community standards · revision 2026-09",
+    "keywords": ["quiet", "noise", "music", "loud", "neighbors", "disturbance"]
+  },
+  {
+    "title": "Pets and service animals",
+    "content": "Pets must be registered with the concierge and kept on a leash or in a carrier in shared areas. Owners must clean up after their pets. Pets are not permitted in the pool or fitness center; service-animal access questions should be referred to property management for the applicable accommodation policy.",
+    "source": "Northstar Residences Handbook · Pet policy · revision 2026-09",
+    "keywords": ["pet", "pets", "dog", "cat", "leash", "animal"]
+  },
+  {
+    "title": "Maintenance access and appointments",
+    "content": "For a routine maintenance appointment, provide the apartment number, issue description, preferred time window and whether you consent to entry. The concierge confirms the appointment and entry arrangements. The system must not assume entry consent or promise a technician arrival before an appointment is confirmed.",
+    "source": "Northstar Residences Handbook · Maintenance appointments · revision 2026-09",
+    "keywords": ["appointment", "entry", "consent", "maintenance visit", "availability"]
+  },
+  {
+    "title": "Lost access credentials",
+    "content": "Report a lost building credential to the concierge promptly. The concierge verifies resident identity before disabling the lost credential or issuing a replacement. A knowledge response can explain this process but cannot issue a pass or grant access.",
+    "source": "Northstar Residences Handbook · Lost credentials · revision 2026-09",
+    "keywords": ["lost", "key", "fob", "credential", "replacement", "locked out"]
+  },
+  {
+    "title": "Sky lounge booking procedure",
+    "content": "To request a private event in the Floor 10 sky lounge, send the concierge the date, start and end time, expected guest count and apartment number. Reservations must finish by 10:00 PM. The concierge checks availability and confirms the booking. An informational reply is not a booking confirmation.",
+    "source": "Northstar Residences Handbook · Sky lounge reservations · revision 2026-09",
+    "keywords": ["reserve", "book", "booking", "sky lounge", "private event", "party"]
+  },
+  {
     "title": "Residential waste and recycling",
     "content": "Bagged household waste and separated recycling go into the labeled chutes in each floor's refuse room. Cardboard must be flattened and placed in the recycling area beside the service elevator; hazardous materials must be taken to the concierge.",
     "source": "Northstar Residences Operations Manual · Waste and recycling · revised August 2026",

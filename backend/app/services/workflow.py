@@ -537,6 +537,7 @@ class WorkflowService:
                 "model": decision.model_id,
                 "tools": decision.tool_calls,
                 "evidence_sensor_ids": decision.evidence_sensor_ids,
+                "maintenance_summary": " ".join(report.summary for report in decision.specialist_reports if report.role == "Maintenance Intelligence Agent"),
                 "diagnosis": decision.diagnosis,
                 "coordinator_role": getattr(self.agent, "coordinator_role", "Operations Coordinator"),
                 "specialist_roles": [report.role for report in decision.specialist_reports],
@@ -843,6 +844,7 @@ class WorkflowService:
                 "procedure": procedure,
                 "diagnosis": decision.diagnosis,
                 "evidence_sensor_ids": decision.evidence_sensor_ids,
+                "maintenance_summary": " ".join(report.summary for report in decision.specialist_reports if report.role == "Maintenance Intelligence Agent"),
                 "scope": policy_parameters["scope"],
             },
             rationale=f"{policy.reason}. {decision.diagnosis}",
@@ -879,11 +881,19 @@ class WorkflowService:
         due = datetime.now(UTC) + timedelta(seconds=technician_delay)
         action = self.repository.get_action(f"ACT-{ticket.ticket_id}-DISPATCH")
         requested = action.requested if action else {}
+        brief = (
+            f"Resident report: {ticket.description}\n"
+            f"Location: {ticket.location_id}\n"
+            f"Working diagnosis (requires on-site confirmation): {requested.get('diagnosis', 'Not established')}\n"
+            f"Evidence sensor IDs: {', '.join(requested.get('evidence_sensor_ids', [])) or 'Not available'}\n"
+            f"Maintenance context: {requested.get('maintenance_summary') or 'No matching history recorded'}\n"
+            f"Procedure: {requested.get('procedure', 'Inspect the affected system and document safe restoration.')}"
+        )
         order = self.work_orders.create(
             ticket,
             asset_id=str(requested.get("asset_id", "ELEC-PNL-7A")),
             trade=str(requested.get("trade", "electrical")),
-            procedure=str(requested.get("procedure", "Inspect the affected system and document safe restoration.")),
+            procedure=brief,
             due_at=due,
             idempotency_key=f"WO-{ticket.ticket_id}",
         )

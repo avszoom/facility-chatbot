@@ -16,6 +16,6 @@ export function RequestSummary({ metrics, tickets, contributions }: { metrics: M
   return <section className="request-summary" aria-label="Request outcomes and ownership">
     {cards.map(([label, count, description, color]) => <article key={label} className={color}><small>{label}</small><strong>{count}</strong><span>{description}</span></article>)}
     <p>{metrics.received} received · {metrics.resolved} resolved ({metrics.autonomous_resolutions} automatically, {assisted} with staff) · {metrics.active} still open</p>
-    <p className="summary-help">Action percentages cover recorded coordination work across all requests, including those closed with staff help. Agent actions + staff actions = 100% when work is recorded. Physical repair and routing events are excluded; this is not time saved. Technician completions: {contributions?.technician_completions ?? "—"} (simulated). Open a request for its breakdown.</p>
+    <details className="summary-help"><summary>How these numbers are counted</summary><p>Percentages cover recorded coordination actions, including staff-assisted resolutions. Physical repair and routing events are excluded; this is not time saved. Technician completions: {contributions?.technician_completions ?? "—"} (simulated). Open a request for its breakdown.</p></details>
   </section>;
 }

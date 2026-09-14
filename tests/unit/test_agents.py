@@ -138,3 +138,26 @@ def test_openai_runtime_is_a_strands_boundary_without_exposing_key():
     assert runtime.provider == "openai-responses"
     assert runtime.model_id == "gpt-5.2"
     assert "test-only" not in repr(runtime)
+
+
+def test_missing_evidence_repairs_routing_without_fabricating_a_decision():
+    from backend.app.agents.runtime import enforce_evidence_handoff
+    from backend.app.domain.models import CoordinatorDirective
+    proposal = CoordinatorDirective(iteration=2, action="execute", objective="Answer",
+                                    rationale="Enough evidence", state_summary="Ready")
+    repaired = enforce_evidence_handoff(proposal, ["Intake & Safety Agent", "Building Context Agent"])
+    assert repaired.action == "delegate"
+    assert repaired.specialist_role == "Intake & Safety Agent"
+    assert repaired.decision is None
+    assert repaired.model_provider == "workflow-guardrail"
+    assert "guardrail" in repaired.rationale
+    assert enforce_evidence_handoff(proposal, []) is proposal
+
+
+def test_evidence_guard_preserves_safe_escalation_and_valid_model_choice():
+    from backend.app.agents.runtime import enforce_evidence_handoff
+    from backend.app.domain.models import CoordinatorDirective
+    for action, role in [("escalate", None), ("delegate", "Building Context Agent")]:
+        proposal = CoordinatorDirective(iteration=2, action=action, specialist_role=role,
+                                        objective="Check", rationale="Next step", state_summary="Pending")
+        assert enforce_evidence_handoff(proposal, ["Building Context Agent"]) is proposal
