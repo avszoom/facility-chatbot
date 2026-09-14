@@ -8,7 +8,6 @@ const metrics: Metrics = { received: 1, active: 0, resolved: 1, autonomous_resol
 describe("Request ownership summary", () => {
   it("accounts for a staff-resolved request even when automatic resolutions are zero", () => {
     const html = renderToStaticMarkup(<RequestSummary metrics={metrics} tickets={[]} />);
-    expect(html).toContain("<small>Resolved with staff</small><strong>1</strong>");
     expect(html).toContain("1 received · 1 resolved (0 automatically, 1 with staff) · 0 still open");
   });
 

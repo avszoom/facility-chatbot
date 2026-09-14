@@ -219,6 +219,7 @@ export interface LiveOperations {
   recent_events: TicketEvent[];
   impact: {
     actions_performed: number;
+    contributions?: { agent_actions: number; human_actions: number; technician_completions: number; agent_percent: number | null; human_percent: number | null };
     issues_resolved: number;
     resolved_autonomously: number;
     needs_user: number;

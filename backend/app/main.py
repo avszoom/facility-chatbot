@@ -64,6 +64,8 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
             for ticket in tickets
             for event in runtime.repository.list_events(ticket.ticket_id)
         ]
+        from backend.app.services.contributions import action_contributions
+
         recent_events = sorted(
             all_events,
             key=lambda event: event["created_at"],
@@ -104,6 +106,7 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
             },
             "recent_events": recent_events,
             "impact": {
+                "contributions": action_contributions(all_events),
                 "actions_performed": sum(
                     event["event_type"]
                     in {

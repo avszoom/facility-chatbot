@@ -34,7 +34,7 @@ export function OverviewView({ tickets, metrics, live, onReview }: Props) {
   const needsYou = tickets.filter((ticket) => ticket.status === "needs_approval" || ticket.status === "escalated");
   const waitingExternal = tickets.filter((ticket) => ticket.status === "waiting_technician");
   const agentWorking = tickets.filter((ticket) => ["new", "triaging", "working", "waiting_verification"].includes(ticket.status));
-  const autonomyRate = metrics.resolved ? Math.round(metrics.autonomous_resolutions / metrics.resolved * 100) : 0;
+  const autonomyRate = live.impact.contributions?.agent_percent ?? 0;
   const primaryDecision = needsYou[0];
   const active = [...tickets].sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at)).slice(0, 10);
   const otherOpen = Math.max(0, metrics.active - needsYou.length);
@@ -51,9 +51,9 @@ export function OverviewView({ tickets, metrics, live, onReview }: Props) {
       </section>
 
       <section className="overview-panel autonomy-panel">
-        <div className="overview-panel-head"><div><h2>How requests were closed</h2><p>Whole-request outcomes, not the share of work done by agents</p></div></div>
-        <div className="autonomy-chart"><div className="autonomy-ring" style={{ background: `conic-gradient(#38c986 ${autonomyRate * 3.6}deg, #e9eef4 0deg)` }}><span><b>{autonomyRate}%</b><small>fully automatic closures</small></span></div><dl><div><dt><i className="green" />Handled automatically</dt><dd>{metrics.autonomous_resolutions}</dd></div><div><dt><i className="blue" />Resolved with staff</dt><dd>{Math.max(0, metrics.resolved - metrics.autonomous_resolutions)}</dd></div><div><dt><i className="violet" />Agent working</dt><dd>{agentWorking.length}</dd></div><div><dt><i className="amber" />Waiting externally</dt><dd>{waitingExternal.length}</dd></div><div><dt><i className="red" />Needs your attention</dt><dd>{needsYou.length}</dd></div></dl></div>
-        <div className="autonomy-callout"><b>{metrics.resolved ? `${autonomyRate}% of resolved requests handled without staff intervention` : "No resolved requests yet"}</b><span>A staff-assisted closure may still include extensive agent work. Open a request to see its action-by-action automation percentage.</span></div>
+        <div className="overview-panel-head"><div><h2>Who handled the coordination</h2><p>Completed actions across all requests, including staff-assisted closures</p></div></div>
+        <div className="autonomy-chart"><div className="autonomy-ring" style={{ background: `conic-gradient(#38c986 ${autonomyRate * 3.6}deg, #e9eef4 0deg)` }}><span><b>{live.impact.contributions?.agent_percent == null ? "—" : `${autonomyRate}%`}</b><small>actions by agents</small></span></div><dl><div><dt><i className="green" />Agent actions</dt><dd>{live.impact.contributions?.agent_actions ?? "—"}</dd></div><div><dt><i className="blue" />Staff actions</dt><dd>{live.impact.contributions?.human_actions ?? "—"}</dd></div><div><dt><i className="violet" />Agent working</dt><dd>{agentWorking.length}</dd></div><div><dt><i className="amber" />Waiting externally</dt><dd>{waitingExternal.length}</dd></div><div><dt><i className="red" />Needs your attention</dt><dd>{needsYou.length}</dd></div></dl></div>
+        <div className="autonomy-callout"><b>{live.impact.contributions?.agent_percent == null ? "No coordination actions recorded yet" : `${autonomyRate}% agent actions · ${live.impact.contributions.human_percent}% staff actions`}</b><span>A staff-assisted closure may still include extensive agent work. Open a request to see its action-by-action automation percentage.</span></div>
       </section>
 
       <aside className={`overview-panel decision-detail ${primaryDecision ? "has-decision" : ""}`}>
