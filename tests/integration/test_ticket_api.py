@@ -4,6 +4,23 @@ from backend.app.domain.models import TicketCreate
 from backend.app.main import create_app
 
 
+def test_staff_update_stays_open_and_is_idempotent(system):
+    client = TestClient(create_app(system))
+    ticket = system.tickets.create(TicketCreate(subject="Unexpected request",
+        description="Something unusual happened and I need help.", requester="Priya Shah", location_id="BLDG-A-LOBBY"))
+    for _ in range(20):
+        system.workflow.process_due(limit=10)
+    for _ in range(2):
+        response = client.post(f"/api/tickets/{ticket.ticket_id}/staff-response",
+            json={"response": "Facilities is reviewing the equipment assignment.", "resolve": False})
+        assert response.status_code == 200
+        assert response.json()["status"] == "escalated"
+    detail = system.tickets.detail(ticket.ticket_id)
+    assert len([e for e in detail.events if e.event_type == "staff.note_added"]) == 1
+    assert not any(e.event_type == "ticket.resolved" for e in detail.events)
+    assert client.get("/api/operations/live").json()["impact"]["contributions"]["human_actions"] == 1
+
+
 def test_seed_and_enquiry_vertical_slice(system):
     client = TestClient(create_app(system))
     response = client.post("/api/workspace/sample-requests")

@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
+from hashlib import sha256
+from backend.app.services.review_summary import review_summary
 
 from backend.app.domain.models import (
     ApprovalRequest,
@@ -111,6 +113,7 @@ class TicketService:
         if not ticket:
             raise KeyError(ticket_id)
         return TicketDetail(
+            review_summary=review_summary(ticket, self.repository.list_events(ticket_id), self.repository.get_work_order_for_ticket(ticket_id)),
             ticket=ticket,
             events=self.repository.list_events(ticket_id),
             actions=self.repository.list_actions(ticket_id),
@@ -257,6 +260,21 @@ class TicketService:
             raise ValueError("Ticket is not waiting for a staff response")
 
         now = datetime.now(UTC)
+        if not request.resolve:
+            key = sha256(request.response.encode()).hexdigest()[:16]
+            event_id = f"EVT-{ticket_id}-STAFF-NOTE-{key}"
+            if any(e.event_id == event_id for e in self.repository.list_events(ticket_id)):
+                return ticket
+            notification = self.notifications.send(ticket, request.response, "requester", f"MSG-{ticket_id}-STAFF-NOTE-{key}")
+            self._append(TicketEvent(event_id=event_id, ticket_id=ticket_id, actor=request.actor,
+                event_type="staff.note_added", summary=request.response,
+                payload={"notification": notification, "manual_resolution": False},
+                correlation_id=f"CORR-{ticket_id}", created_at=now))
+            return ticket
+        history = self.repository.list_events(ticket_id)
+        order = self.repository.get_work_order_for_ticket(ticket_id)
+        if any(e.event_type == "workflow.dead_lettered" for e in history) or (order and not any(e.event_type == "verification.passed" for e in history)):
+            raise ValueError("This workflow has unfinished work. Send an update without resolving it; a staff reply cannot confirm a repair.")
         notification = self.notifications.send(
             ticket,
             request.response,

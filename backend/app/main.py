@@ -78,6 +78,7 @@ def create_app(system: ApplicationSystem | None = None) -> FastAPI:
                 "deliveries": runtime.repository.workflow_deliveries(),
                 "ticket_progress": {
                     ticket.ticket_id: {
+                        "review_summary": runtime.tickets.detail(ticket.ticket_id).review_summary if ticket.status in {"escalated", "needs_approval"} else None,
                         "latest_event": next((event for event in reversed(all_events) if event["ticket_id"] == ticket.ticket_id), None),
                         "contributions": action_contributions([event for event in all_events if event["ticket_id"] == ticket.ticket_id]),
                         "event_types": sorted({event["event_type"] for event in all_events if event["ticket_id"] == ticket.ticket_id}),

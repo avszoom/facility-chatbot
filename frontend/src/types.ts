@@ -72,7 +72,9 @@ export interface WorkOrder {
   completion_notes: string | null;
 }
 
+export interface ReviewSummary { done: string[]; finding: string; changed: string; reason: string; next_step: string; can_resolve: boolean; technical_detail: string }
 export interface TicketDetail {
+  review_summary?: ReviewSummary;
   ticket: Ticket;
   events: TicketEvent[];
   actions: ActionRecord[];
@@ -195,7 +197,7 @@ export interface LiveOperations {
     worker_count: number;
     active_executions: number;
     deliveries?: Array<{ticket_id: string; status: string; attempts: number; step: string; role: string | null; error: string | null}>;
-    ticket_progress?: Record<string, {latest_event: TicketEvent | null; event_types?: string[]; contributions: {agent_actions: number; human_actions: number; agent_percent: number | null}}>;
+    ticket_progress?: Record<string, {review_summary?: ReviewSummary | null; latest_event: TicketEvent | null; event_types?: string[]; contributions: {agent_actions: number; human_actions: number; agent_percent: number | null}}>;
     queued_tasks: number;
     active_tickets: Ticket[];
     workflow_states: Record<string, {

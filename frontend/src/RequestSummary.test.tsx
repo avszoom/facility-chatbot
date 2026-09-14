@@ -8,9 +8,9 @@ const metrics: Metrics = { received: 1, active: 0, resolved: 1, autonomous_resol
 describe("Request ownership summary", () => {
   it("shows changing action counts rather than a static automation percentage", () => {
     const html=renderToStaticMarkup(<RequestSummary metrics={metrics} tickets={[]} contributions={{agent_actions:12,human_actions:0,technician_completions:0,agent_percent:100,human_percent:0}} />);
-    expect(html).toContain("Agent actions completed</small><strong");
-    expect(html).toContain('metric-updated">12</strong>');
-    expect(html).toContain("100% of recorded work · not completion %");
+    expect(html).toContain("12 agent actions (100%)");
+    expect(html).toContain("0 staff actions (0%)");
+    expect(html).toContain("Actions are steps, not resolved requests.");
   });
   it("accounts for a staff-resolved request even when automatic resolutions are zero", () => {
     const html = renderToStaticMarkup(<RequestSummary metrics={metrics} tickets={[]} />);

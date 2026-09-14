@@ -213,6 +213,7 @@ class ApprovalRequest(Model):
 
 
 class StaffResponseRequest(Model):
+    resolve: bool = True
     response: str = Field(min_length=3, max_length=2000)
     actor: str = Field(default="Maya Roberts", min_length=2, max_length=80)
 
@@ -245,6 +246,7 @@ class SimulationCustomRequest(Model):
 
 
 class TicketDetail(Model):
+    review_summary: dict[str, Any] = Field(default_factory=dict)
     ticket: Ticket
     events: list[TicketEvent]
     actions: list[ActionRecord]

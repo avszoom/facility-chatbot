@@ -15,7 +15,7 @@ def action_contributions(events: list[dict]) -> dict:
         legacy_evidence = False
         for event in items:
             kind = event["event_type"]
-            if kind in {"approval.decided", "staff.response_sent"}:
+            if kind in {"approval.decided", "staff.response_sent", "staff.note_added"}:
                 human += 1
             elif kind == "work_order.completed":
                 technician += 1

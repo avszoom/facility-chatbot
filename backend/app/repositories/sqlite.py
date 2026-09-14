@@ -604,7 +604,7 @@ class SQLiteOperationsRepository:
         autonomous = [
             ticket for ticket in resolved
             if not any(
-                event.event_type in {"approval.decided", "staff.response_sent"}
+                event.event_type in {"approval.decided", "staff.response_sent", "staff.note_added"}
                 for event in events[ticket.ticket_id]
             )
         ]

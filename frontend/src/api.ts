@@ -31,10 +31,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ approved, reason: approved ? "Approved in operations console" : "Operator declined dispatch" }),
     }),
-  respond: (id: string, response: string) =>
+  respond: (id: string, response: string, resolve = true) =>
     request<Ticket>(`/api/tickets/${id}/staff-response`, {
       method: "POST",
-      body: JSON.stringify({ response, actor: "Maya Roberts" }),
+      body: JSON.stringify({ response, resolve, actor: "Maya Roberts" }),
     }),
   processScheduled: (seconds = 60) => request<{ processed: number }>(`/api/workspace/process-scheduled?seconds=${seconds}`, { method: "POST" }),
   failVerification: (id: string) => request(`/api/workspace/verification-failure/${id}?enabled=true`, { method: "POST" }),

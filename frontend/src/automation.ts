@@ -21,7 +21,7 @@ export function ticketContributions(events: TicketEvent[]) {
     if (seen.has(event.event_id)) continue;
     seen.add(event.event_id);
     const contribution = { id: event.event_id, label: "", actor: event.actor, summary: event.summary, at: event.created_at };
-    if (event.event_type === "approval.decided" || event.event_type === "staff.response_sent") {
+    if (event.event_type === "approval.decided" || ["staff.response_sent", "staff.note_added"].includes(event.event_type)) {
       human.push({ ...contribution, label: event.event_type === "approval.decided" ? "Made an approval decision" : "Replied and closed the request" });
     } else if (event.event_type === "work_order.completed") {
       technician.push({ ...contribution, label: "Completed field work (simulated)" });
